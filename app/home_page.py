@@ -1,5 +1,5 @@
 """首页 — 功能卡片导航，分组展示"""
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea
 from PySide6.QtCore import Signal, Qt
 
 from app.theme_manager import ThemeManager
@@ -104,18 +104,8 @@ class HomePage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 20, 32, 20)
-        layout.setSpacing(10)
-
-        self.title = QLabel()
-        self.title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.title)
-
-        self.subtitle = QLabel()
-        self.subtitle.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.subtitle)
-
-        layout.addSpacing(6)
+        layout.setContentsMargins(32, 12, 32, 20)
+        layout.setSpacing(12)
 
         # 双列分组布局
         outer = QHBoxLayout()
@@ -148,24 +138,14 @@ class HomePage(QWidget):
         scroll.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
         layout.addWidget(scroll, 1)
 
-        self.ver = QLabel()
-        self.ver.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.ver)
-
         self._apply_style()
 
     def _apply_lang(self):
-        self.title.setText(self._lang.tr("app.title"))
-        self.subtitle.setText(self._lang.tr("app.subtitle"))
-        self.ver.setText(self._lang.tr("app.version"))
         for lbl, key in self._section_labels:
             lbl.setText(self._lang.tr(key))
 
     def _apply_style(self):
         c = self._theme.current_colors
-        self.title.setStyleSheet(f"font-size: 18pt; font-weight: bold; color: {c['TEXT_PRIMARY']};")
-        self.subtitle.setStyleSheet(f"font-size: 10pt; color: {c['TEXT_MUTED']};")
-        self.ver.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")
         for lbl, _ in self._section_labels:
             lbl.setStyleSheet(f"font-size: 10pt; font-weight: bold; color: {c['PRIMARY']}; padding: 2px 0;")
 

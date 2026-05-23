@@ -61,11 +61,16 @@ class MainWindow(QMainWindow):
             f"QPushButton:hover {{ background-color: {c['PRIMARY']}; color: white; }}"
         )
 
+        self.title_label.setText(self._lang.tr("app.title"))
         self.title_label.setStyleSheet(
-            f"font-size: 13pt; font-weight: bold; color: {c['TEXT_PRIMARY']};"
+            f"font-size: 12pt; font-weight: bold; color: {c['TEXT_PRIMARY']};"
         )
         self.version_label.setStyleSheet(
-            f"font-size: 9pt; color: {c['TEXT_MUTED']}; padding-top: 4px;"
+            f"font-size: 9pt; color: {c['TEXT_MUTED']};"
+        )
+        self.subtitle_label.setText(self._lang.tr("app.subtitle"))
+        self.subtitle_label.setStyleSheet(
+            f"font-size: 9pt; color: {c['TEXT_MUTED']};"
         )
 
         self.settings_btn.setStyleSheet(
@@ -108,30 +113,30 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(16, 8, 16, 8)
         header_layout.setSpacing(8)
 
-        self.back_btn = QPushButton(self._lang.tr("btn.back"))
+        self.back_btn = QPushButton()
         self.back_btn.setVisible(False)
         self.back_btn.clicked.connect(self._go_home)
         header_layout.addWidget(self.back_btn)
 
         header_layout.addStretch()
 
-        # Centered title + version
+        # Title block: app name  version  ·  subtitle
+        self.title_label = QLabel()
+        self.version_label = QLabel()
+        self.subtitle_label = QLabel()
+
         title_wrap = QWidget()
         title_layout = QHBoxLayout(title_wrap)
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(6)
-
-        self.title_label = QLabel(self._lang.tr("app.title"))
         title_layout.addWidget(self.title_label)
-
-        self.version_label = QLabel(self._lang.tr("app.version"))
         title_layout.addWidget(self.version_label)
-
+        title_layout.addWidget(self.subtitle_label)
         header_layout.addWidget(title_wrap)
 
         header_layout.addStretch()
 
-        self.settings_btn = QPushButton(self._lang.tr("btn.settings"))
+        self.settings_btn = QPushButton()
         self.settings_btn.setToolTip(self._lang.tr("btn.settings.tooltip"))
         self.settings_btn.clicked.connect(self._on_settings_clicked)
         header_layout.addWidget(self.settings_btn)
