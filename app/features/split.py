@@ -140,6 +140,7 @@ class SplitFeature(QWidget):
             self.next_btn.setVisible(False)
             mode = self.step2.get_config()["mode"]
             self.step3.set_mode(mode)
+            self.step3.reset_for_restart()
 
     def _on_file_loaded(self, file_path: str, sheets: list):
         self.next_btn.setEnabled(True)
@@ -864,6 +865,17 @@ class _Step3Execute(QWidget):
 
     def set_ready(self, ready: bool):
         self.start_btn.setEnabled(ready)
+
+    def reset_for_restart(self):
+        """Reset UI to ready state (when user goes back to step 2 then returns)."""
+        self.start_btn.setEnabled(True)
+        self.start_btn.setText(self._lang.tr("split.start_btn"))
+        self.status_label.setText("")
+        c = self._theme.current_colors
+        self.status_label.setStyleSheet(f"color: {c['TEXT_SECONDARY']}; font-size: 10pt;")
+        self.progress_bar.setVisible(False)
+        self.open_dir_btn.setVisible(False)
+        self._info_banner.setVisible(True)
 
     def update_progress(self, current: int, total: int, message: str):
         self.progress_bar.setMaximum(total)
