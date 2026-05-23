@@ -13,7 +13,7 @@ from app.home_page import HomePage
 
 
 class MainWindow(QMainWindow):
-    FEATURE_INDEX = {"split": 1, "merge": 2, "dedup": 3, "convert": 4}
+    FEATURE_INDEX = {"split": 1, "merge": 2, "dedup": 3, "convert": 4, "filter": 5, "columns": 6, "pivot": 7, "validate": 8}
 
     def __init__(self):
         super().__init__()
@@ -25,8 +25,8 @@ class MainWindow(QMainWindow):
         icon_path = os.path.join(base, "resources", f"icon.{icon_ext}")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        self.setMinimumSize(680, 580)
-        self.resize(720, 620)
+        self.setMinimumSize(680, 700)
+        self.resize(780, 760)
 
         self._apply_global_theme()
         self._theme.theme_changed.connect(self._on_theme_changed)

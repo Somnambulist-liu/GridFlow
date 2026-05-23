@@ -29,6 +29,30 @@ FEATURES = [
         "title": "格式转换",
         "desc": "XLSX / CSV\n批量互转",
     },
+    {
+        "id": "filter",
+        "icon": "\U0001f50d",
+        "title": "数据筛选",
+        "desc": "按条件过滤行\n大于/小于/等于/包含/介于",
+    },
+    {
+        "id": "columns",
+        "icon": "\U0001f4cb",
+        "title": "列操作",
+        "desc": "重排、重命名、删除列\n支持简单计算列",
+    },
+    {
+        "id": "pivot",
+        "icon": "\U0001f4ca",
+        "title": "透视表",
+        "desc": "交叉表分析\n行/列/值字段，求和/计数/平均",
+    },
+    {
+        "id": "validate",
+        "icon": "✅",
+        "title": "数据校验",
+        "desc": "空值检测、异常值发现\n类型检查、生成报告",
+    },
 ]
 
 
@@ -108,7 +132,7 @@ class HomePage(QWidget):
 
         layout.addSpacing(12)
 
-        # 2×2 卡片网格
+        # 2列卡片网格（滚动区）
         grid = QGridLayout()
         grid.setSpacing(16)
 
@@ -122,8 +146,14 @@ class HomePage(QWidget):
             grid.setColumnStretch(col, 1)
             self._cards.append(card)
 
-        layout.addLayout(grid)
-        layout.addStretch()
+        grid_widget = QWidget()
+        grid_widget.setLayout(grid)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(grid_widget)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
+        layout.addWidget(scroll, 1)
 
         # 版本
         self.ver = QLabel("v3.0")
