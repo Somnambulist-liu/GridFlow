@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QComboBox, QRadioButton, QLineEdit,
     QTableView, QHeaderView, QProgressBar, QFrame,
-    QToolButton, QStackedWidget, QMenu,
+    QToolButton, QStackedWidget, QMenu, QCheckBox,
 )
 from PySide6.QtCore import Signal, Qt, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QDragEnterEvent, QDropEvent
@@ -173,6 +173,7 @@ class SplitFeature(QWidget):
             column=config["column"], mode=config["mode"],
             output_dir=config["output_dir"], output_path=output_path,
             name_pattern=config["name_pattern"], keep_header=config["keep_header"],
+            preserve_formulas=config["preserve_formulas"],
         )
         self._worker.progress.connect(self.step3.update_progress)
         self._worker.finished.connect(self._on_split_finished)
@@ -414,6 +415,9 @@ class _Step2Config(QWidget):
         out_row.addWidget(self.out_btn)
         layout.addLayout(out_row)
 
+        self.formula_check = QCheckBox()
+        layout.addWidget(self.formula_check)
+
         self.naming_title = QLabel()
         layout.addWidget(self.naming_title)
         self.naming_container = QWidget()
@@ -478,6 +482,7 @@ class _Step2Config(QWidget):
         self._output_section_label.setText(self._lang.tr("split.output_dir"))
         self.output_dir_input.setPlaceholderText(self._lang.tr("split.output_dir_placeholder"))
         self.out_btn.setText(self._lang.tr("label.browse"))
+        self.formula_check.setText(self._lang.tr("split.preserve_formulas"))
         self.naming_title.setText(self._lang.tr("split.file_naming"))
         self.prefix_input.setPlaceholderText(self._lang.tr("split.prefix_placeholder"))
         self.suffix_input.setPlaceholderText(self._lang.tr("split.suffix_placeholder"))
@@ -512,6 +517,11 @@ class _Step2Config(QWidget):
             f"font-size: 9pt; font-weight: bold; color: {c['TEXT_SECONDARY']}; margin-bottom: 2px;")
         self.naming_title.setStyleSheet(
             f"font-size: 9pt; font-weight: bold; color: {c['TEXT_SECONDARY']}; margin-bottom: 2px;")
+        self.formula_check.setStyleSheet(
+            f"QCheckBox {{ color: {c['TEXT_SECONDARY']}; font-size: 9pt; spacing: 6px; }} "
+            f"QCheckBox::indicator {{ width: 14px; height: 14px; border-radius: 3px; border: 1px solid {c['BORDER']}; }} "
+            f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; background-color: {c['PRIMARY']}; }}"
+        )
         self.sheet_combo.setStyleSheet(get_combo_style(c))
         self.column_combo.setStyleSheet(get_combo_style(c))
         self._plus1.setStyleSheet(f"color: {c['TEXT_MUTED']}; font-weight: bold; font-size: 10pt;")
@@ -645,6 +655,7 @@ class _Step2Config(QWidget):
             "column": column, "mode": mode,
             "output_dir": output_dir, "name_pattern": name_pattern,
             "keep_header": True,
+            "preserve_formulas": self.formula_check.isChecked(),
         }
 
 

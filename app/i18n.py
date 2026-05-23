@@ -5,7 +5,7 @@ connects to the signal and calls _apply_lang() to refresh all visible text.
 """
 from PySide6.QtCore import QObject, Signal, QSettings
 
-APP_VERSION = "3.1"
+APP_VERSION = "3.2"
 
 # ── Chinese (default) ──────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ ZH_CN = {
     # App shell
     "app.title": "GridFlow",
     "app.subtitle": "表格数据流式处理，轻量、快速、离线可用",
-    "app.version": "v3.1",
+    "app.version": "v3.2",
     "btn.back": "← 首页",
     "btn.settings": "⚙ 设置",
     "btn.settings.tooltip": "设置",
@@ -105,6 +105,7 @@ ZH_CN = {
     "split.field_btn_fmt": "{{{cn}}}  （{n}个）",
     "split.preset_none": "无",
     "split.field_tooltip": "点击查看该字段的所有值",
+    "split.preserve_formulas": "保留原表公式（默认只保留数据）",
     "split.dialog_output_dir": "选择输出目录",
 
     # Merge feature
@@ -252,7 +253,7 @@ ZH_CN = {
 EN_US = {
     "app.title": "GridFlow",
     "app.subtitle": "Streamlined Spreadsheet Processing — Lightweight, Fast, Offline",
-    "app.version": "v3.1",
+    "app.version": "v3.2",
     "btn.back": "← Home",
     "btn.settings": "⚙ Settings",
     "btn.settings.tooltip": "Settings",
@@ -339,6 +340,7 @@ EN_US = {
     "split.field_btn_fmt": "{{{cn}}}  ({n})",
     "split.preset_none": "None",
     "split.field_tooltip": "Click to view all values of this field",
+    "split.preserve_formulas": "Preserve original formulas (default: data only)",
     "split.dialog_output_dir": "Select Output Directory",
 
     # Merge feature
