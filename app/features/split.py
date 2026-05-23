@@ -1,72 +1,174 @@
+"""拆分功能模块"""
 import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QComboBox, QRadioButton, QLineEdit,
     QTableView, QHeaderView, QProgressBar, QFrame,
-    QToolButton, QMenu, QSizePolicy,
+    QToolButton, QStackedWidget, QMenu,
 )
 from PySide6.QtCore import Signal, Qt, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QDragEnterEvent, QDropEvent
 
 from core.reader import get_sheet_names, get_columns, get_unique_values
+from core.splitter import SplitWorker
 from app.theme import (
     PRIMARY, PRIMARY_HOVER, SUCCESS, TEXT_PRIMARY, TEXT_SECONDARY,
-    TEXT_MUTED, BORDER, BG_INPUT, BG_MAIN, PRIMARY_LIGHT,
+    TEXT_MUTED, BORDER, BG_CARD, BG_INPUT, BG_MAIN, PRIMARY_LIGHT,
     RADIUS_SM, RADIUS_MD, RADIUS_LG,
 )
-
-# ComboBox 统一样式
-COMBO_STYLE = (
-    "QComboBox {"
-    f"  background-color: #FFFFFF;"
-    f"  border: 1px solid {BORDER};"
-    f"  border-radius: {RADIUS_SM}px;"
-    f"  padding: 6px 10px;"
-    f"  color: {TEXT_PRIMARY};"
-    "}"
-    "QComboBox:hover {"
-    f"  border-color: {PRIMARY};"
-    "}"
-    "QComboBox::drop-down {"
-    "  border: none;"
-    "  padding-right: 6px;"
-    "}"
-    "QComboBox QAbstractItemView {"
-    "  background-color: #FFFFFF;"
-    f"  border: 1px solid {BORDER};"
-    f"  border-radius: 4px;"
-    f"  color: {TEXT_PRIMARY};"
-    "  selection-background-color: #DBEAFE;"
-    f"  selection-color: {TEXT_PRIMARY};"
-    "  outline: none;"
-    "  padding: 2px;"
-    "}"
-    "QComboBox QAbstractItemView::item {"
-    "  padding: 5px 12px;"
-    "  min-height: 24px;"
-    "}"
-    "QComboBox QAbstractItemView::item:hover {"
-    "  background-color: #EFF6FF;"
-    "}"
-)
+from app.step_indicator import StepIndicator
+from app.widgets.common import COMBO_STYLE, setup_preset_menu, section_label, make_drop_btn
 
 
-# ─── Helper ─────────────────────────────────────────────────
-def _setup_preset_menu(button: QToolButton, target: QLineEdit, presets: list):
-    menu = QMenu(button)
-    menu.setStyleSheet(
-        "QMenu { background-color: white; border: 1px solid #E2E8F0; border-radius: 6px; padding: 4px; } "
-        "QMenu::item { padding: 5px 16px; border-radius: 3px; } "
-        "QMenu::item:selected { background-color: #DBEAFE; color: #1E293B; }"
-    )
-    for label_text, value in presets:
-        action = menu.addAction(label_text)
-        action.triggered.connect(lambda checked, v=value: target.setText(v))
-    button.setMenu(menu)
+class SplitFeature(QWidget):
+    back_requested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._worker: SplitWorker | None = None
+        self._current_step = 0
+        self._current_preview_data = {}
+        self._setup_ui()
+        self._connect_signals()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # 步骤条
+        self.step_indicator = StepIndicator()
+        layout.addWidget(self.step_indicator)
+
+        # 步骤内容
+        self.stack = QStackedWidget()
+        self.stack.setStyleSheet("background-color: transparent;")
+        self.step1 = _Step1File()
+        self.step2 = _Step2Config()
+        self.step3 = _Step3Execute()
+        self.stack.addWidget(self.step1)
+        self.stack.addWidget(self.step2)
+        self.stack.addWidget(self.step3)
+        layout.addWidget(self.stack, 1)
+
+        # 底部导航
+        footer = QWidget()
+        footer.setStyleSheet(f"background-color: {BG_CARD}; border-top: 1px solid {BORDER};")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(20, 10, 20, 10)
+
+        self.back_btn = QPushButton("←  上一步")
+        self.back_btn.setStyleSheet(self._nav_btn_style())
+        self.back_btn.setVisible(False)
+        self.back_btn.clicked.connect(self._go_prev)
+        footer_layout.addWidget(self.back_btn)
+
+        footer_layout.addStretch()
+
+        self.next_btn = QPushButton("下一步  →")
+        self.next_btn.setStyleSheet(self._nav_btn_style(primary=True))
+        self.next_btn.setEnabled(False)
+        self.next_btn.clicked.connect(self._go_next)
+        footer_layout.addWidget(self.next_btn)
+
+        layout.addWidget(footer)
+
+    def _nav_btn_style(self, primary: bool = False) -> str:
+        if primary:
+            return (
+                f"QPushButton {{ background-color: {PRIMARY}; color: white; border: none; "
+                f"border-radius: {RADIUS_SM}px; padding: 8px 24px; font-size: 11pt; font-weight: bold; }} "
+                f"QPushButton:hover {{ background-color: {PRIMARY_HOVER}; }} "
+                f"QPushButton:disabled {{ background-color: {TEXT_MUTED}; }}"
+            )
+        return (
+            f"QPushButton {{ background-color: transparent; color: {TEXT_SECONDARY}; "
+            f"border: 1px solid {BORDER}; border-radius: {RADIUS_SM}px; padding: 8px 20px; font-size: 11pt; }} "
+            f"QPushButton:hover {{ color: #1E293B; border-color: {TEXT_MUTED}; }}"
+        )
+
+    def _connect_signals(self):
+        self.step1.file_selected.connect(self._on_file_loaded)
+        self.step2.config_valid.connect(self._on_config_valid)
+        self.step2.column_loaded.connect(self._on_preview_update)
+        self.step3.start_requested.connect(self._start_split)
+
+    def _go_next(self):
+        if self._current_step == 0:
+            self._navigate_to(1)
+        elif self._current_step == 1:
+            self._navigate_to(2)
+
+    def _go_prev(self):
+        if self._current_step > 0:
+            self._navigate_to(self._current_step - 1)
+
+    def _navigate_to(self, step: int):
+        self._current_step = step
+        self.stack.setCurrentIndex(step)
+        self.step_indicator.set_current(step)
+        self.back_btn.setVisible(step > 0)
+        self.next_btn.setVisible(step < 2)
+        if step == 0:
+            self.next_btn.setText("下一步  →")
+            self.next_btn.setEnabled(bool(self.step1.file_path))
+        elif step == 1:
+            self.next_btn.setText("下一步  →")
+            self.next_btn.setEnabled(self.step2.is_valid())
+        elif step == 2:
+            self.next_btn.setVisible(False)
+            mode = self.step2.get_config()["mode"]
+            self.step3.set_mode(mode)
+
+    def _on_file_loaded(self, file_path: str, sheets: list):
+        self.next_btn.setEnabled(True)
+        self.step2.load_file(file_path, sheets)
+
+    def _on_config_valid(self, valid: bool):
+        if self._current_step == 1:
+            self.next_btn.setEnabled(valid)
+
+    def _on_preview_update(self, column_name: str, value_counts: dict):
+        self._current_preview_data = value_counts
+        mode = self.step2.get_config()["mode"]
+        self.step3.set_mode(mode)
+        self.step3.update_preview(column_name, value_counts)
+        self.step3.set_ready(True)
+
+    def _start_split(self):
+        config = self.step2.get_config()
+        if not config["file_path"]:
+            return
+        if config["mode"] == "sheets":
+            output_path = os.path.join(
+                config["output_dir"],
+                f"{os.path.splitext(os.path.basename(config['file_path']))[0]}_拆分结果.xlsx"
+            )
+        else:
+            output_path = ""
+        self._worker = SplitWorker(self)
+        self._worker.configure(
+            file_path=config["file_path"], sheet_name=config["sheet_name"],
+            column=config["column"], mode=config["mode"],
+            output_dir=config["output_dir"], output_path=output_path,
+            name_pattern=config["name_pattern"], keep_header=config["keep_header"],
+        )
+        self._worker.progress.connect(self.step3.update_progress)
+        self._worker.finished.connect(self._on_split_finished)
+        self._worker.error_occurred.connect(self._on_split_error)
+        self._worker.start()
+
+    def _on_split_finished(self, summary: str):
+        config = self.step2.get_config()
+        self.step3.show_result_stats(config["output_dir"])
+        self.step3.on_finished(summary)
+
+    def _on_split_error(self, error_msg: str):
+        self.step3.on_error(error_msg)
 
 
 # ─── Step 1: 选择文件 ────────────────────────────────────────
-class Step1File(QWidget):
+class _Step1File(QWidget):
     file_selected = Signal(str, list)
 
     def __init__(self, parent=None):
@@ -79,22 +181,17 @@ class Step1File(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
-
-        # 图标 + 提示
         hero = QVBoxLayout()
         hero.setAlignment(Qt.AlignCenter)
         hero.setSpacing(8)
-
         icon_label = QLabel("\U0001F4E5")
         icon_label.setStyleSheet("font-size: 48px;")
         icon_label.setAlignment(Qt.AlignCenter)
         hero.addWidget(icon_label)
-
         hero_title = QLabel("选择要拆分的 Excel 文件")
         hero_title.setStyleSheet("font-size: 14pt; font-weight: bold; color: #1E293B;")
         hero_title.setAlignment(Qt.AlignCenter)
         hero.addWidget(hero_title)
-
         hero_sub = QLabel("支持 .xlsx / .xls 格式，可拖拽文件到此处")
         hero_sub.setStyleSheet(f"font-size: 10pt; color: {TEXT_MUTED};")
         hero_sub.setAlignment(Qt.AlignCenter)
@@ -102,27 +199,22 @@ class Step1File(QWidget):
         layout.addLayout(hero)
         layout.addSpacing(20)
 
-        # 拖拽区
         self.drop_zone = QFrame()
         self.drop_zone.setObjectName("dropZone")
         self.drop_zone.setFixedHeight(120)
         dz_layout = QVBoxLayout(self.drop_zone)
         dz_layout.setAlignment(Qt.AlignCenter)
         dz_layout.setSpacing(8)
-
         dz_icon = QLabel("\U0001F4C1")
         dz_icon.setStyleSheet("font-size: 36px;")
         dz_icon.setAlignment(Qt.AlignCenter)
         dz_layout.addWidget(dz_icon)
-
         dz_text = QLabel("拖拽 Excel 文件到此处")
         dz_text.setStyleSheet(f"font-size: 10pt; color: {TEXT_MUTED};")
         dz_text.setAlignment(Qt.AlignCenter)
         dz_layout.addWidget(dz_text)
-
         layout.addWidget(self.drop_zone)
 
-        # 选择按钮 + 文件信息
         btn_row = QHBoxLayout()
         btn_row.setAlignment(Qt.AlignCenter)
         self.browse_btn = QPushButton("浏览选择文件")
@@ -139,13 +231,11 @@ class Step1File(QWidget):
         self.file_info.setAlignment(Qt.AlignCenter)
         self.file_info.setWordWrap(True)
         layout.addWidget(self.file_info)
-
         layout.addStretch()
 
     def _browse_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "",
-            "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         if file_path:
             self._load_file(file_path)
@@ -186,9 +276,9 @@ class Step1File(QWidget):
 
 
 # ─── Step 2: 拆分配置 ──────────────────────────────────────
-class Step2Config(QWidget):
+class _Step2Config(QWidget):
     config_valid = Signal(bool)
-    column_loaded = Signal(str, dict)  # column_name, {value: count}
+    column_loaded = Signal(str, dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -203,24 +293,20 @@ class Step2Config(QWidget):
         layout.setContentsMargins(20, 8, 20, 8)
         layout.setSpacing(14)
 
-        # ─── Sheet + 字段 行 ───
         row1 = QHBoxLayout()
         row1.setSpacing(20)
-        # Sheet
         g1 = QVBoxLayout()
         g1.setSpacing(4)
-        g1.addWidget(self._section_label("选择 Sheet"))
+        g1.addWidget(section_label("选择 Sheet"))
         self.sheet_combo = QComboBox()
         self.sheet_combo.setPlaceholderText("请先选择文件")
         self.sheet_combo.setStyleSheet(COMBO_STYLE)
         self.sheet_combo.currentTextChanged.connect(self._on_sheet_changed)
         g1.addWidget(self.sheet_combo)
         row1.addLayout(g1)
-
-        # 字段
         g2 = QVBoxLayout()
         g2.setSpacing(4)
-        g2.addWidget(self._section_label("拆分字段"))
+        g2.addWidget(section_label("拆分字段"))
         self.column_combo = QComboBox()
         self.column_combo.setPlaceholderText("请先选择 Sheet")
         self.column_combo.setStyleSheet(COMBO_STYLE)
@@ -229,9 +315,7 @@ class Step2Config(QWidget):
         row1.addLayout(g2)
         layout.addLayout(row1)
 
-        # ─── 拆分模式 ───
-        mode_label = self._section_label("拆分模式")
-        layout.addWidget(mode_label)
+        layout.addWidget(section_label("拆分模式"))
         mode_row = QHBoxLayout()
         self.mode_files = QRadioButton("拆分为独立文件")
         self.mode_sheets = QRadioButton("拆分为多个 Sheet")
@@ -242,9 +326,7 @@ class Step2Config(QWidget):
         mode_row.addStretch()
         layout.addLayout(mode_row)
 
-        # ─── 输出目录 ───
-        out_label = self._section_label("输出目录")
-        layout.addWidget(out_label)
+        layout.addWidget(section_label("输出目录"))
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
@@ -256,18 +338,14 @@ class Step2Config(QWidget):
         out_row.addWidget(out_btn)
         layout.addLayout(out_row)
 
-        # ─── 文件命名 ───
-        self.naming_title = self._section_label("文件命名")
+        self.naming_title = section_label("文件命名")
         layout.addWidget(self.naming_title)
         self.naming_container = QWidget()
         naming_layout = QVBoxLayout(self.naming_container)
         naming_layout.setContentsMargins(0, 0, 0, 0)
         naming_layout.setSpacing(6)
-
         name_row = QHBoxLayout()
         name_row.setSpacing(4)
-
-        # 前缀
         prefix_group = QHBoxLayout()
         prefix_group.setSpacing(1)
         self.prefix_input = QLineEdit()
@@ -275,19 +353,16 @@ class Step2Config(QWidget):
         self.prefix_input.setFixedWidth(90)
         self.prefix_input.textChanged.connect(self._update_naming_preview)
         prefix_group.addWidget(self.prefix_input)
-        p_btn = self._make_drop_btn()
-        _setup_preset_menu(p_btn, self.prefix_input, [
+        p_btn = make_drop_btn()
+        setup_preset_menu(p_btn, self.prefix_input, [
             ("无", ""), ("日期_", "2024年_"), ("数据_", "数据_"),
             ("报表_", "报表_"), ("分类_", "分类_"), ("导出_", "导出_"),
         ])
         prefix_group.addWidget(p_btn)
         name_row.addLayout(prefix_group)
-
         plus1 = QLabel("+")
         plus1.setStyleSheet(f"color: {TEXT_MUTED}; font-weight: bold; font-size: 10pt;")
         name_row.addWidget(plus1)
-
-        # 字段值
         self.field_btn = QToolButton()
         self.field_btn.setText("{字段值}")
         self.field_btn.setPopupMode(QToolButton.InstantPopup)
@@ -300,12 +375,9 @@ class Step2Config(QWidget):
         )
         self.field_btn.setEnabled(False)
         name_row.addWidget(self.field_btn)
-
         plus2 = QLabel("+")
         plus2.setStyleSheet(f"color: {TEXT_MUTED}; font-weight: bold; font-size: 10pt;")
         name_row.addWidget(plus2)
-
-        # 后缀
         suffix_group = QHBoxLayout()
         suffix_group.setSpacing(1)
         self.suffix_input = QLineEdit()
@@ -313,46 +385,23 @@ class Step2Config(QWidget):
         self.suffix_input.setFixedWidth(90)
         self.suffix_input.textChanged.connect(self._update_naming_preview)
         suffix_group.addWidget(self.suffix_input)
-        s_btn = self._make_drop_btn()
-        _setup_preset_menu(s_btn, self.suffix_input, [
+        s_btn = make_drop_btn()
+        setup_preset_menu(s_btn, self.suffix_input, [
             ("无", ""), ("_副本", "_副本"), ("_统计", "_统计"),
             ("_汇总", "_汇总"), ("_结果", "_结果"), ("_整理", "_整理"),
         ])
         suffix_group.addWidget(s_btn)
         name_row.addLayout(suffix_group)
-
         dot_label = QLabel(".xlsx")
         dot_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-weight: bold; font-size: 10pt;")
         name_row.addWidget(dot_label)
         name_row.addStretch()
         naming_layout.addLayout(name_row)
-
         self.naming_preview = QLabel("预览：选择字段后将显示示例")
         self.naming_preview.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 9pt;")
         naming_layout.addWidget(self.naming_preview)
-
         layout.addWidget(self.naming_container)
         layout.addStretch()
-
-    @staticmethod
-    def _section_label(text: str) -> QLabel:
-        label = QLabel(text)
-        label.setStyleSheet(f"font-size: 9pt; font-weight: bold; color: {TEXT_SECONDARY}; margin-bottom: 2px;")
-        return label
-
-    @staticmethod
-    def _make_drop_btn() -> QToolButton:
-        btn = QToolButton()
-        btn.setText("▼")
-        btn.setPopupMode(QToolButton.InstantPopup)
-        btn.setFixedWidth(20)
-        btn.setStyleSheet(
-            f"QToolButton {{ color: {TEXT_SECONDARY}; border: 1px solid {BORDER}; "
-            f"border-radius: 0 4px 4px 0; background: {BG_INPUT}; font-size: 7pt; }} "
-            f"QToolButton:hover {{ background: {PRIMARY_LIGHT}; }} "
-            "QToolButton::menu-indicator { image: none; }"
-        )
-        return btn
 
     def load_file(self, file_path: str, sheets: list):
         self._file_path = file_path
@@ -450,22 +499,15 @@ class Step2Config(QWidget):
         suffix = self.suffix_input.text().strip()
         name_pattern = f"{prefix}{{value}}{suffix}.xlsx"
         return {
-            "file_path": self._file_path,
-            "sheet_name": sheet,
-            "column": column,
-            "mode": mode,
-            "output_dir": output_dir,
-            "name_pattern": name_pattern,
+            "file_path": self._file_path, "sheet_name": sheet,
+            "column": column, "mode": mode,
+            "output_dir": output_dir, "name_pattern": name_pattern,
             "keep_header": True,
         }
 
-    @property
-    def current_values(self):
-        return self._current_values
-
 
 # ─── Step 3: 预览执行 ──────────────────────────────────────
-class Step3Execute(QWidget):
+class _Step3Execute(QWidget):
     start_requested = Signal()
 
     def __init__(self, parent=None):
@@ -480,17 +522,14 @@ class Step3Execute(QWidget):
         layout.setContentsMargins(16, 12, 16, 8)
         layout.setSpacing(16)
 
-        # ── 预览表格区 ──
         preview_header = QHBoxLayout()
         preview_label = QLabel("\U0001F50D  数据预览")
         preview_label.setStyleSheet("font-size: 11pt; font-weight: bold; color: #1E293B;")
         preview_header.addWidget(preview_label)
-
         self.summary_label = QLabel("")
         self.summary_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 9pt;")
         preview_header.addWidget(self.summary_label)
         preview_header.addStretch()
-
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("搜索过滤...")
         self.search_input.setFixedWidth(180)
@@ -511,7 +550,6 @@ class Step3Execute(QWidget):
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
         self.table_view.verticalHeader().setVisible(False)
         self.table_view.setMinimumHeight(120)
-
         self.model = QStandardItemModel()
         self.model.setColumnCount(3)
         self.model.setHorizontalHeaderLabels(["字段值", "行数", "占比"])
@@ -520,33 +558,26 @@ class Step3Execute(QWidget):
         self.proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self.proxy_model.setFilterKeyColumn(0)
         self.table_view.setModel(self.proxy_model)
-
         hdr = self.table_view.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
         hdr.setSectionResizeMode(1, QHeaderView.Fixed)
         hdr.setSectionResizeMode(2, QHeaderView.Fixed)
         self.table_view.setColumnWidth(1, 80)
         self.table_view.setColumnWidth(2, 80)
-        layout.addWidget(self.table_view, 1)  # 表格区可弹性伸缩
+        layout.addWidget(self.table_view, 1)
 
-        # ── 摘要信息横幅 ──
         self._info_banner = QLabel("")
         self._info_banner.setAlignment(Qt.AlignCenter)
         self._info_banner.setWordWrap(True)
-        self._info_banner.setStyleSheet(
-            f"font-size: 11pt; color: {TEXT_PRIMARY}; font-weight: bold;"
-        )
+        self._info_banner.setStyleSheet(f"font-size: 11pt; color: {TEXT_PRIMARY}; font-weight: bold;")
         self._info_banner.setVisible(False)
         layout.addWidget(self._info_banner)
 
-        # ── 分隔间距 ──
         layout.addSpacing(8)
 
-        # ── 开始按钮 ──
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         self.start_btn = QPushButton("▶  开始拆分")
-        self.start_btn.setObjectName("primaryBtn")
         self.start_btn.setFixedHeight(44)
         self.start_btn.setStyleSheet(
             f"QPushButton {{ background-color: {PRIMARY}; color: white; border: none; "
@@ -559,30 +590,24 @@ class Step3Execute(QWidget):
         btn_row.addWidget(self.start_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
-
         layout.addSpacing(8)
 
-        # ── 进度 + 结果区（固定在底部）──
         self.bottom_area = QWidget()
         bottom_layout = QVBoxLayout(self.bottom_area)
         bottom_layout.setContentsMargins(0, 0, 0, 0)
         bottom_layout.setSpacing(8)
-
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(22)
         self.progress_bar.setVisible(False)
         bottom_layout.addWidget(self.progress_bar)
-
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 10pt;")
         bottom_layout.addWidget(self.status_label)
-
         open_row = QHBoxLayout()
         open_row.addStretch()
         self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
-        self.open_dir_btn.setObjectName("successBtn")
         self.open_dir_btn.setStyleSheet(
             f"QPushButton {{ background-color: {SUCCESS}; color: white; border: none; "
             f"border-radius: {RADIUS_SM}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
@@ -593,7 +618,6 @@ class Step3Execute(QWidget):
         open_row.addWidget(self.open_dir_btn)
         open_row.addStretch()
         bottom_layout.addLayout(open_row)
-
         layout.addWidget(self.bottom_area)
 
     def _on_start(self):

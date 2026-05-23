@@ -56,7 +56,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Excel分表拆分工具',
+    name='GridFlow',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
