@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+dist/
+*.spec.bak
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+test_output/
+*.tmp
+*.xlsx
+
+# Claude
+.claude/
