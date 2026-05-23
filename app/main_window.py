@@ -2,13 +2,13 @@ import os
 import sys
 from PySide6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
-    QStackedWidget, QPushButton, QLabel,
+    QStackedWidget, QPushButton,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 
 from app.styles import GLOBAL_STYLESHEET
-from app.theme import PRIMARY, PRIMARY_HOVER, TEXT_MUTED, BORDER, RADIUS_SM, BG_CARD, TEXT_PRIMARY
+from app.theme import PRIMARY, PRIMARY_HOVER, TEXT_MUTED, BORDER, RADIUS_SM, BG_CARD
 from app.home_page import HomePage
 
 
@@ -57,13 +57,6 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(self.back_btn)
 
         header_layout.addStretch()
-
-        self.title_label = QLabel("GridFlow")
-        self.title_label.setStyleSheet(f"font-size: 13pt; font-weight: bold; color: {TEXT_PRIMARY};")
-        header_layout.addWidget(self.title_label)
-
-        header_layout.addStretch()
-        header_layout.addWidget(QWidget())  # spacer to balance back_btn width
         root.addWidget(self.header)
 
         # ── 内容区 ──
@@ -90,20 +83,8 @@ class MainWindow(QMainWindow):
         idx = self.FEATURE_INDEX.get(feature_id, 1)
         self.stack.setCurrentIndex(idx)
         self.back_btn.setVisible(True)
-        self.title_label.setText(self._get_title(feature_id))
 
     def _go_home(self):
         self._active_feature = None
         self.stack.setCurrentIndex(0)
         self.back_btn.setVisible(False)
-        self.title_label.setText("GridFlow")
-
-    @staticmethod
-    def _get_title(feature_id: str) -> str:
-        titles = {
-            "split": "表格拆分",
-            "merge": "表格合并",
-            "dedup": "数据去重",
-            "convert": "格式转换",
-        }
-        return titles.get(feature_id, "")
