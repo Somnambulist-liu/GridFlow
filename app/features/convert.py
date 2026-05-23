@@ -9,6 +9,7 @@ from PySide6.QtCore import Signal, Qt
 
 from core.converter import ConvertWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.widgets.common import section_label
 
 
@@ -21,12 +22,32 @@ class ConvertFeature(QWidget):
         self._file_paths = []
         self._output_dir = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
+        self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._setup_ui()
         self._apply_styles()
-        self._theme.theme_changed.connect(self._on_theme_changed)
+        self._apply_lang()
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self._fmt_section_label.setText(self._lang.tr("convert.target_format"))
+        self.fmt_xlsx_to_csv.setText(self._lang.tr("convert.fmt_xlsx_to_csv"))
+        self.fmt_csv_to_xlsx.setText(self._lang.tr("convert.fmt_csv_to_xlsx"))
+        self._files_section_label.setText(self._lang.tr("convert.select_files"))
+        self.add_btn.setText(self._lang.tr("convert.add_files"))
+        self.clear_btn.setText(self._lang.tr("convert.clear"))
+        self._output_section_label.setText(self._lang.tr("convert.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("convert.output_dir_placeholder"))
+        self.output_browse_btn.setText(self._lang.tr("label.browse"))
+        self.start_btn.setText(self._lang.tr("convert.start_btn"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -49,6 +70,7 @@ class ConvertFeature(QWidget):
             f"QPushButton:hover {{ border-color: {c['PRIMARY']}; color: {c['PRIMARY']}; }}"
         )
         self.clear_btn.setStyleSheet(self.add_btn.styleSheet())
+        self.output_browse_btn.setStyleSheet(self.add_btn.styleSheet())
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -56,10 +78,11 @@ class ConvertFeature(QWidget):
         layout.setSpacing(12)
 
         # ── 目标格式 ──
-        layout.addWidget(section_label("目标格式"))
+        self._fmt_section_label = section_label("")
+        layout.addWidget(self._fmt_section_label)
         fmt_row = QHBoxLayout()
-        self.fmt_xlsx_to_csv = QRadioButton("XLSX → CSV")
-        self.fmt_csv_to_xlsx = QRadioButton("CSV → XLSX")
+        self.fmt_xlsx_to_csv = QRadioButton()
+        self.fmt_csv_to_xlsx = QRadioButton()
         self.fmt_xlsx_to_csv.setChecked(True)
         fmt_row.addWidget(self.fmt_xlsx_to_csv)
         fmt_row.addWidget(self.fmt_csv_to_xlsx)
@@ -67,12 +90,13 @@ class ConvertFeature(QWidget):
         layout.addLayout(fmt_row)
 
         # ── 文件选择 ──
-        layout.addWidget(section_label("选择文件（可多选）"))
+        self._files_section_label = section_label("")
+        layout.addWidget(self._files_section_label)
         btn_row = QHBoxLayout()
-        self.add_btn = QPushButton("添加文件")
+        self.add_btn = QPushButton()
         self.add_btn.clicked.connect(self._add_files)
         btn_row.addWidget(self.add_btn)
-        self.clear_btn = QPushButton("清空")
+        self.clear_btn = QPushButton()
         self.clear_btn.clicked.connect(self._clear_files)
         btn_row.addWidget(self.clear_btn)
         btn_row.addStretch()
@@ -83,16 +107,16 @@ class ConvertFeature(QWidget):
         layout.addWidget(self.file_list)
 
         # ── 输出目录 ──
-        layout.addWidget(section_label("输出目录"))
+        self._output_section_label = section_label("")
+        layout.addWidget(self._output_section_label)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
-        self.output_dir_input.setPlaceholderText("选择输出目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.output_browse_btn = QPushButton()
+        self.output_browse_btn.setFixedWidth(60)
+        self.output_browse_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.output_browse_btn)
         layout.addLayout(out_row)
 
         layout.addStretch()
@@ -100,7 +124,7 @@ class ConvertFeature(QWidget):
         # ── 开始按钮 ──
         btn_row2 = QHBoxLayout()
         btn_row2.addStretch()
-        self.start_btn = QPushButton("▶  开始转换")
+        self.start_btn = QPushButton()
         self.start_btn.setFixedHeight(44)
         self.start_btn.clicked.connect(self._start_convert)
         btn_row2.addWidget(self.start_btn)
@@ -120,7 +144,7 @@ class ConvertFeature(QWidget):
 
         open_row = QHBoxLayout()
         open_row.addStretch()
-        self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
+        self.open_dir_btn = QPushButton()
         self.open_dir_btn.setVisible(False)
         self.open_dir_btn.clicked.connect(self._open_output_dir)
         open_row.addWidget(self.open_dir_btn)
@@ -130,7 +154,7 @@ class ConvertFeature(QWidget):
     def _add_files(self):
         is_csv = self.fmt_csv_to_xlsx.isChecked()
         filter_str = "CSV 文件 (*.csv);;所有文件 (*)" if is_csv else "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
-        paths, _ = QFileDialog.getOpenFileNames(self, "选择文件", "", filter_str)
+        paths, _ = QFileDialog.getOpenFileNames(self, self._lang.tr("convert.dialog_select_files"), "", filter_str)
         for p in paths:
             if p not in self._file_paths:
                 self._file_paths.append(p)
@@ -141,14 +165,14 @@ class ConvertFeature(QWidget):
         self.file_list.clear()
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("convert.dialog_select_output"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
             self._output_dir = dir_path
 
     def _start_convert(self):
         if not self._file_paths:
-            self.status_label.setText("请添加文件")
+            self.status_label.setText(self._lang.tr("convert.need_files"))
             return
         output_dir = self.output_dir_input.text().strip() or os.path.dirname(self._file_paths[0])
         self._output_dir = output_dir
@@ -161,7 +185,7 @@ class ConvertFeature(QWidget):
             output_dir=output_dir,
         )
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self.progress_bar.setVisible(True)
         self.open_dir_btn.setVisible(False)
         self._worker.progress.connect(self._on_progress)
@@ -177,7 +201,7 @@ class ConvertFeature(QWidget):
     def _on_finished(self, summary: str):
         c = self._theme.current_colors
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始转换")
+        self.start_btn.setText(self._lang.tr("convert.start_btn"))
         self.status_label.setText(summary)
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
@@ -185,8 +209,8 @@ class ConvertFeature(QWidget):
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始转换")
-        self.status_label.setText(f"❌ 转换失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("convert.start_btn"))
+        self.status_label.setText(self._lang.tr("convert.error_fmt", error=error_msg))
         self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 

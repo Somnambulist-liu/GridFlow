@@ -11,6 +11,7 @@ from PySide6.QtCore import Signal, Qt
 from core.reader import get_sheet_names, get_columns
 from core.column_ops import ColumnOpsWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.widgets.common import get_combo_style, section_label
 
 
@@ -23,14 +24,41 @@ class ColumnsFeature(QWidget):
         self._file_path = ""
         self._output_dir = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
         self._renames = {}
         self._calc_columns = []
         self._setup_ui()
         self._apply_styles()
         self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
+        self._apply_lang()
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self.sec_file.setText(self._lang.tr("label.file"))
+        self.file_btn.setText(self._lang.tr("label.select_file"))
+        self.file_label.setText(self._lang.tr("label.no_file"))
+        self.sec_sheet.setText(self._lang.tr("label.sheet"))
+        self.sec_col_ops.setText(self._lang.tr("columns.column_ops"))
+        self.sec_rename.setText(self._lang.tr("columns.rename_col"))
+        self.rename_input.setPlaceholderText(self._lang.tr("columns.rename_placeholder"))
+        self.rename_btn.setText(self._lang.tr("columns.rename_btn"))
+        self.sec_calc.setText(self._lang.tr("columns.calc_col"))
+        self.calc_name_input.setPlaceholderText(self._lang.tr("columns.calc_name_placeholder"))
+        self.calc_expr_input.setPlaceholderText(self._lang.tr("columns.calc_expr_placeholder"))
+        self.add_calc_btn.setText(self._lang.tr("columns.add_btn"))
+        self.sec_output.setText(self._lang.tr("label.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("label.default_out_dir"))
+        self.out_btn.setText(self._lang.tr("label.browse"))
+        self.start_btn.setText(self._lang.tr("columns.start"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
+        self._update_calc_preview()
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -75,7 +103,8 @@ class ColumnsFeature(QWidget):
         layout.setSpacing(12)
 
         # ── 选择文件 ──
-        layout.addWidget(section_label("选择文件"))
+        self.sec_file = section_label("选择文件")
+        layout.addWidget(self.sec_file)
         file_row = QHBoxLayout()
         self.file_btn = QPushButton("选择文件")
         self.file_btn.clicked.connect(self._select_file)
@@ -86,13 +115,15 @@ class ColumnsFeature(QWidget):
         layout.addLayout(file_row)
 
         # ── Sheet ──
-        layout.addWidget(section_label("选择 Sheet"))
+        self.sec_sheet = section_label("选择 Sheet")
+        layout.addWidget(self.sec_sheet)
         self.sheet_combo = QComboBox()
         self.sheet_combo.currentTextChanged.connect(self._on_sheet_changed)
         layout.addWidget(self.sheet_combo)
 
         # ── 列操作 ──
-        layout.addWidget(section_label("列操作（勾选保留，拖拽排序）"))
+        self.sec_col_ops = section_label("列操作（勾选保留，拖拽排序）")
+        layout.addWidget(self.sec_col_ops)
         self.column_list = QListWidget()
         self.column_list.setDragDropMode(QAbstractItemView.InternalMove)
         self.column_list.setMaximumHeight(140)
@@ -103,7 +134,8 @@ class ColumnsFeature(QWidget):
         # ── 重命名 ──
         rename_row = QHBoxLayout()
         rename_row.setSpacing(8)
-        rename_row.addWidget(section_label("重命名列"))
+        self.sec_rename = section_label("重命名列")
+        rename_row.addWidget(self.sec_rename)
         self.rename_col_combo = QComboBox()
         self.rename_col_combo.setFixedWidth(150)
         rename_row.addWidget(self.rename_col_combo)
@@ -120,7 +152,8 @@ class ColumnsFeature(QWidget):
         # ── 计算列 ──
         calc_row = QHBoxLayout()
         calc_row.setSpacing(8)
-        calc_row.addWidget(section_label("计算列"))
+        self.sec_calc = section_label("计算列")
+        calc_row.addWidget(self.sec_calc)
         self.calc_name_input = QLineEdit()
         self.calc_name_input.setPlaceholderText("列名")
         self.calc_name_input.setFixedWidth(120)
@@ -141,16 +174,17 @@ class ColumnsFeature(QWidget):
         layout.addWidget(self.calc_preview)
 
         # ── 输出 ──
-        layout.addWidget(section_label("输出目录"))
+        self.sec_output = section_label("输出目录")
+        layout.addWidget(self.sec_output)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
         self.output_dir_input.setPlaceholderText("默认与源文件相同目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.out_btn = QPushButton("浏览")
+        self.out_btn.setFixedWidth(60)
+        self.out_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.out_btn)
         layout.addLayout(out_row)
 
         layout.addStretch()
@@ -187,7 +221,7 @@ class ColumnsFeature(QWidget):
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, self._lang.tr("label.file_dialog"), "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         if file_path:
             self._file_path = file_path
@@ -200,7 +234,7 @@ class ColumnsFeature(QWidget):
                 if sheets:
                     self._on_sheet_changed(sheets[0])
             except Exception as e:
-                self.file_label.setText(f"读取失败：{e}")
+                self.file_label.setText(self._lang.tr("label.read_error", error=str(e)))
             self.sheet_combo.blockSignals(False)
 
     def _on_sheet_changed(self, sheet_name: str):
@@ -233,7 +267,7 @@ class ColumnsFeature(QWidget):
         if old and new:
             self._renames[old] = new
             self.rename_input.clear()
-            self.status_label.setText(f"已记录重命名: {old} → {new}")
+            self.status_label.setText(self._lang.tr("columns.rename_recorded", old=old, new=new))
 
     def _add_calc_column(self):
         name = self.calc_name_input.text().strip()
@@ -249,17 +283,17 @@ class ColumnsFeature(QWidget):
             self.calc_preview.setText("")
         else:
             items = [f"{c['name']} = {c['expression']}" for c in self._calc_columns]
-            self.calc_preview.setText("计算列：" + " | ".join(items))
+            self.calc_preview.setText(self._lang.tr("columns.calc_preview") + " | ".join(items))
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("label.dir_dialog"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
 
     def _start_ops(self):
         sheet = self.sheet_combo.currentText()
         if not self._file_path or not sheet:
-            self.status_label.setText("请选择文件和 Sheet")
+            self.status_label.setText(self._lang.tr("label.select_file_and_sheet"))
             return
 
         kept = []
@@ -271,7 +305,7 @@ class ColumnsFeature(QWidget):
             order.append(item.text())
 
         if not kept:
-            self.status_label.setText("请至少保留一列")
+            self.status_label.setText(self._lang.tr("columns.keep_one"))
             return
 
         output_dir = self.output_dir_input.text().strip() or os.path.dirname(self._file_path)
@@ -287,7 +321,7 @@ class ColumnsFeature(QWidget):
             output_dir=output_dir, output_name=output_name,
         )
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self.progress_bar.setVisible(True)
         self.open_dir_btn.setVisible(False)
         self._worker.progress.connect(self._on_progress)
@@ -303,7 +337,7 @@ class ColumnsFeature(QWidget):
     def _on_finished(self, summary: str):
         c = self._theme.current_colors
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始执行")
+        self.start_btn.setText(self._lang.tr("columns.start"))
         self.status_label.setText(summary)
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
@@ -311,8 +345,8 @@ class ColumnsFeature(QWidget):
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始执行")
-        self.status_label.setText(f"❌ 操作失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("columns.start"))
+        self.status_label.setText(self._lang.tr("columns.error_failed", error=error_msg))
         self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 

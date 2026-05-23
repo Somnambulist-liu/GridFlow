@@ -11,6 +11,7 @@ from PySide6.QtCore import Signal, Qt
 from core.reader import get_sheet_names
 from core.validator import ValidateWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.widgets.common import get_combo_style, section_label
 
 
@@ -23,12 +24,37 @@ class ValidateFeature(QWidget):
         self._file_path = ""
         self._output_dir = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
         self._setup_ui()
         self._apply_styles()
         self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
+        self._apply_lang()
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self.sec_file.setText(self._lang.tr("label.file"))
+        self.file_btn.setText(self._lang.tr("label.select_file"))
+        self.file_label.setText(self._lang.tr("label.no_file"))
+        self.sec_sheet.setText(self._lang.tr("label.sheet"))
+        self.sec_checks.setText(self._lang.tr("validate.check_types"))
+        self.chk_empty.setText(self._lang.tr("validate.empty_check"))
+        self.empty_threshold_label.setText(self._lang.tr("validate.threshold_label"))
+        self.chk_outliers.setText(self._lang.tr("validate.outlier_check"))
+        self.iqr_label.setText(self._lang.tr("validate.iqr_label"))
+        self.chk_type.setText(self._lang.tr("validate.type_check"))
+        self.chk_dup.setText(self._lang.tr("validate.dup_check"))
+        self.sec_output.setText(self._lang.tr("label.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("label.default_out_dir"))
+        self.out_btn.setText(self._lang.tr("label.browse"))
+        self.start_btn.setText(self._lang.tr("validate.start"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -60,7 +86,8 @@ class ValidateFeature(QWidget):
         layout.setSpacing(12)
 
         # ── 选择文件 ──
-        layout.addWidget(section_label("选择文件"))
+        self.sec_file = section_label("选择文件")
+        layout.addWidget(self.sec_file)
         file_row = QHBoxLayout()
         self.file_btn = QPushButton("选择文件")
         self.file_btn.clicked.connect(self._select_file)
@@ -71,12 +98,14 @@ class ValidateFeature(QWidget):
         layout.addLayout(file_row)
 
         # ── Sheet ──
-        layout.addWidget(section_label("选择 Sheet"))
+        self.sec_sheet = section_label("选择 Sheet")
+        layout.addWidget(self.sec_sheet)
         self.sheet_combo = QComboBox()
         layout.addWidget(self.sheet_combo)
 
         # ── 校验类型 ──
-        layout.addWidget(section_label("校验类型"))
+        self.sec_checks = section_label("校验类型")
+        layout.addWidget(self.sec_checks)
         self._checkboxes = []
 
         self.chk_empty = QCheckBox("空值检测（列空值率超过阈值）")
@@ -85,7 +114,8 @@ class ValidateFeature(QWidget):
 
         empty_row = QHBoxLayout()
         empty_row.setSpacing(8)
-        empty_row.addWidget(QLabel("阈值 (%):"))
+        self.empty_threshold_label = QLabel("阈值 (%):")
+        empty_row.addWidget(self.empty_threshold_label)
         self.empty_threshold = QSpinBox()
         self.empty_threshold.setRange(1, 100)
         self.empty_threshold.setValue(50)
@@ -99,7 +129,8 @@ class ValidateFeature(QWidget):
 
         iqr_row = QHBoxLayout()
         iqr_row.setSpacing(8)
-        iqr_row.addWidget(QLabel("IQR 倍数:"))
+        self.iqr_label = QLabel("IQR 倍数:")
+        iqr_row.addWidget(self.iqr_label)
         self.outlier_multiplier = QSpinBox()
         self.outlier_multiplier.setRange(1, 5)
         self.outlier_multiplier.setValue(1)
@@ -117,16 +148,17 @@ class ValidateFeature(QWidget):
         layout.addWidget(self.chk_dup)
 
         # ── 输出 ──
-        layout.addWidget(section_label("输出目录"))
+        self.sec_output = section_label("输出目录")
+        layout.addWidget(self.sec_output)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
         self.output_dir_input.setPlaceholderText("默认与源文件相同目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.out_btn = QPushButton("浏览")
+        self.out_btn.setFixedWidth(60)
+        self.out_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.out_btn)
         layout.addLayout(out_row)
 
         layout.addStretch()
@@ -164,7 +196,7 @@ class ValidateFeature(QWidget):
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, self._lang.tr("label.file_dialog"), "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         if file_path:
             self._file_path = file_path
@@ -175,18 +207,18 @@ class ValidateFeature(QWidget):
                 sheets = get_sheet_names(file_path)
                 self.sheet_combo.addItems(sheets)
             except Exception as e:
-                self.file_label.setText(f"读取失败：{e}")
+                self.file_label.setText(self._lang.tr("label.read_error", error=str(e)))
             self.sheet_combo.blockSignals(False)
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("label.dir_dialog"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
 
     def _start_validate(self):
         sheet = self.sheet_combo.currentText()
         if not self._file_path or not sheet:
-            self.status_label.setText("请选择文件和 Sheet")
+            self.status_label.setText(self._lang.tr("label.select_file_and_sheet"))
             return
 
         checks = {
@@ -199,7 +231,7 @@ class ValidateFeature(QWidget):
         }
 
         if not any([checks["empty"], checks["outliers"], checks["type_check"], checks["duplicates"]]):
-            self.status_label.setText("请至少选择一种校验类型")
+            self.status_label.setText(self._lang.tr("validate.select_one"))
             return
 
         output_dir = self.output_dir_input.text().strip() or os.path.dirname(self._file_path)
@@ -211,7 +243,7 @@ class ValidateFeature(QWidget):
             checks=checks, output_dir=output_dir,
         )
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self.progress_bar.setVisible(True)
         self.open_dir_btn.setVisible(False)
         self._worker.progress.connect(self._on_progress)
@@ -227,7 +259,7 @@ class ValidateFeature(QWidget):
     def _on_finished(self, summary: str):
         c = self._theme.current_colors
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始校验")
+        self.start_btn.setText(self._lang.tr("validate.start"))
         self.status_label.setText(summary)
         self.status_label.setStyleSheet(
             f"color: {c['TEXT_PRIMARY']}; font-size: 10pt; "
@@ -239,8 +271,8 @@ class ValidateFeature(QWidget):
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始校验")
-        self.status_label.setText(f"❌ 校验失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("validate.start"))
+        self.status_label.setText(self._lang.tr("validate.error_failed", error=error_msg))
         self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 

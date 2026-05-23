@@ -10,15 +10,17 @@ from PySide6.QtCore import Signal, Qt
 from core.reader import get_sheet_names, get_columns
 from core.pivoter import PivotWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.widgets.common import get_combo_style, section_label
 
 
-AGG_FUNCTIONS = [
-    ("计数", "count"),
-    ("求和", "sum"),
-    ("平均", "avg"),
-    ("最小", "min"),
-    ("最大", "max"),
+# Aggregation definitions: (i18n_key, code)
+_AGG_DEFS = [
+    ("pivot.agg_count", "count"),
+    ("pivot.agg_sum", "sum"),
+    ("pivot.agg_avg", "avg"),
+    ("pivot.agg_min", "min"),
+    ("pivot.agg_max", "max"),
 ]
 
 
@@ -31,12 +33,38 @@ class PivotFeature(QWidget):
         self._file_path = ""
         self._output_dir = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
         self._setup_ui()
         self._apply_styles()
         self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
+        self._apply_lang()
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self.sec_file.setText(self._lang.tr("label.file"))
+        self.file_btn.setText(self._lang.tr("label.select_file"))
+        self.file_label.setText(self._lang.tr("label.no_file"))
+        self.sec_sheet.setText(self._lang.tr("label.sheet"))
+        self.sec_fields.setText(self._lang.tr("pivot.field_settings"))
+        self.sec_row.setText(self._lang.tr("pivot.row_field"))
+        self.sec_col.setText(self._lang.tr("pivot.col_field"))
+        self.sec_value.setText(self._lang.tr("pivot.value_field"))
+        self.sec_agg.setText(self._lang.tr("pivot.agg_method"))
+        for i, (key, _) in enumerate(_AGG_DEFS):
+            if i < len(self._agg_buttons):
+                self._agg_buttons[i].setText(self._lang.tr(key))
+        self.sec_output.setText(self._lang.tr("label.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("label.default_out_dir"))
+        self.out_btn.setText(self._lang.tr("label.browse"))
+        self.start_btn.setText(self._lang.tr("pivot.start"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -71,7 +99,8 @@ class PivotFeature(QWidget):
         layout.setSpacing(12)
 
         # ── 选择文件 ──
-        layout.addWidget(section_label("选择文件"))
+        self.sec_file = section_label("选择文件")
+        layout.addWidget(self.sec_file)
         file_row = QHBoxLayout()
         self.file_btn = QPushButton("选择文件")
         self.file_btn.clicked.connect(self._select_file)
@@ -82,33 +111,38 @@ class PivotFeature(QWidget):
         layout.addLayout(file_row)
 
         # ── Sheet ──
-        layout.addWidget(section_label("选择 Sheet"))
+        self.sec_sheet = section_label("选择 Sheet")
+        layout.addWidget(self.sec_sheet)
         self.sheet_combo = QComboBox()
         self.sheet_combo.currentTextChanged.connect(self._on_sheet_changed)
         layout.addWidget(self.sheet_combo)
 
         # ── 透视字段 ──
-        layout.addWidget(section_label("透视字段设置"))
+        self.sec_fields = section_label("透视字段设置")
+        layout.addWidget(self.sec_fields)
         fields_row = QHBoxLayout()
         fields_row.setSpacing(12)
 
         g1 = QVBoxLayout()
         g1.setSpacing(4)
-        g1.addWidget(section_label("行字段"))
+        self.sec_row = section_label("行字段")
+        g1.addWidget(self.sec_row)
         self.row_combo = QComboBox()
         g1.addWidget(self.row_combo)
         fields_row.addLayout(g1)
 
         g2 = QVBoxLayout()
         g2.setSpacing(4)
-        g2.addWidget(section_label("列字段"))
+        self.sec_col = section_label("列字段")
+        g2.addWidget(self.sec_col)
         self.col_combo = QComboBox()
         g2.addWidget(self.col_combo)
         fields_row.addLayout(g2)
 
         g3 = QVBoxLayout()
         g3.setSpacing(4)
-        g3.addWidget(section_label("值字段"))
+        self.sec_value = section_label("值字段")
+        g3.addWidget(self.sec_value)
         self.value_combo = QComboBox()
         g3.addWidget(self.value_combo)
         fields_row.addLayout(g3)
@@ -116,11 +150,12 @@ class PivotFeature(QWidget):
         layout.addLayout(fields_row)
 
         # ── 聚合方式 ──
-        layout.addWidget(section_label("聚合方式"))
+        self.sec_agg = section_label("聚合方式")
+        layout.addWidget(self.sec_agg)
         agg_row = QHBoxLayout()
         self._agg_buttons = []
-        for i, (label, _) in enumerate(AGG_FUNCTIONS):
-            rb = QRadioButton(label)
+        for i, (key, _) in enumerate(_AGG_DEFS):
+            rb = QRadioButton(key)  # placeholder, _apply_lang replaces
             if i == 0:
                 rb.setChecked(True)
             agg_row.addWidget(rb)
@@ -129,16 +164,17 @@ class PivotFeature(QWidget):
         layout.addLayout(agg_row)
 
         # ── 输出 ──
-        layout.addWidget(section_label("输出目录"))
+        self.sec_output = section_label("输出目录")
+        layout.addWidget(self.sec_output)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
         self.output_dir_input.setPlaceholderText("默认与源文件相同目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.out_btn = QPushButton("浏览")
+        self.out_btn.setFixedWidth(60)
+        self.out_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.out_btn)
         layout.addLayout(out_row)
 
         layout.addStretch()
@@ -175,7 +211,7 @@ class PivotFeature(QWidget):
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, self._lang.tr("label.file_dialog"), "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         if file_path:
             self._file_path = file_path
@@ -188,7 +224,7 @@ class PivotFeature(QWidget):
                 if sheets:
                     self._on_sheet_changed(sheets[0])
             except Exception as e:
-                self.file_label.setText(f"读取失败：{e}")
+                self.file_label.setText(self._lang.tr("label.read_error", error=str(e)))
             self.sheet_combo.blockSignals(False)
 
     def _on_sheet_changed(self, sheet_name: str):
@@ -205,27 +241,27 @@ class PivotFeature(QWidget):
             pass
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("label.dir_dialog"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
 
     def _start_pivot(self):
         sheet = self.sheet_combo.currentText()
         if not self._file_path or not sheet:
-            self.status_label.setText("请选择文件和 Sheet")
+            self.status_label.setText(self._lang.tr("label.select_file_and_sheet"))
             return
 
         row_f = self.row_combo.currentText()
         col_f = self.col_combo.currentText()
         val_f = self.value_combo.currentText()
         if not row_f or not col_f or not val_f:
-            self.status_label.setText("请选择行字段、列字段和值字段")
+            self.status_label.setText(self._lang.tr("pivot.select_fields"))
             return
 
         agg = "count"
         for i, rb in enumerate(self._agg_buttons):
             if rb.isChecked():
-                agg = AGG_FUNCTIONS[i][1]
+                agg = _AGG_DEFS[i][1]
                 break
 
         output_dir = self.output_dir_input.text().strip() or os.path.dirname(self._file_path)
@@ -240,7 +276,7 @@ class PivotFeature(QWidget):
             agg_func=agg, output_dir=output_dir, output_name=output_name,
         )
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self.progress_bar.setVisible(True)
         self.open_dir_btn.setVisible(False)
         self._worker.progress.connect(self._on_progress)
@@ -256,7 +292,7 @@ class PivotFeature(QWidget):
     def _on_finished(self, summary: str):
         c = self._theme.current_colors
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  生成透视表")
+        self.start_btn.setText(self._lang.tr("pivot.start"))
         self.status_label.setText(summary)
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
@@ -264,8 +300,8 @@ class PivotFeature(QWidget):
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  生成透视表")
-        self.status_label.setText(f"❌ 生成失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("pivot.start"))
+        self.status_label.setText(self._lang.tr("pivot.error_failed", error=error_msg))
         self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 

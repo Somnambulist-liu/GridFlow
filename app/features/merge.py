@@ -11,6 +11,7 @@ from PySide6.QtCore import Signal, Qt
 from core.reader import get_sheet_names
 from core.merger import MergeWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.widgets.common import section_label
 
 
@@ -24,12 +25,37 @@ class MergeFeature(QWidget):
         self._file_path = ""
         self._output_dir = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
+        self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._setup_ui()
         self._apply_styles()
-        self._theme.theme_changed.connect(self._on_theme_changed)
+        self._apply_lang()
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self._mode_section_label.setText(self._lang.tr("merge.mode"))
+        self.mode_files.setText(self._lang.tr("merge.mode_files"))
+        self.mode_sheets.setText(self._lang.tr("merge.mode_sheets"))
+        self._files_section_label.setText(self._lang.tr("merge.select_files"))
+        self.add_files_btn.setText(self._lang.tr("merge.add_files"))
+        self.clear_files_btn.setText(self._lang.tr("merge.clear"))
+        self._sheet_file_section_label.setText(self._lang.tr("merge.select_file"))
+        self.sheet_file_btn.setText(self._lang.tr("merge.select_file"))
+        self._sheets_select_label.setText(self._lang.tr("merge.select_sheets"))
+        self._output_section_label.setText(self._lang.tr("merge.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("merge.output_dir_placeholder"))
+        self.output_browse_btn.setText(self._lang.tr("label.browse"))
+        self._output_name_label.setText(self._lang.tr("merge.output_name"))
+        self.start_btn.setText(self._lang.tr("merge.start_btn"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
+        # sheet_file_label is dynamic — handled by _update_sheet_file_label
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -52,6 +78,7 @@ class MergeFeature(QWidget):
         self.add_files_btn.setStyleSheet(btn_style)
         self.clear_files_btn.setStyleSheet(btn_style)
         self.sheet_file_btn.setStyleSheet(btn_style)
+        self.output_browse_btn.setStyleSheet(btn_style)
 
     def _btn_style(self) -> str:
         c = self._theme.current_colors
@@ -67,10 +94,11 @@ class MergeFeature(QWidget):
         layout.setSpacing(12)
 
         # ── 合并模式 ──
-        layout.addWidget(section_label("合并模式"))
+        self._mode_section_label = section_label("")
+        layout.addWidget(self._mode_section_label)
         mode_row = QHBoxLayout()
-        self.mode_files = QRadioButton("多文件合并")
-        self.mode_sheets = QRadioButton("多 Sheet 合并")
+        self.mode_files = QRadioButton()
+        self.mode_sheets = QRadioButton()
         self.mode_files.setChecked(True)
         self.mode_files.toggled.connect(self._on_mode_changed)
         mode_row.addWidget(self.mode_files)
@@ -83,12 +111,13 @@ class MergeFeature(QWidget):
         files_layout = QVBoxLayout(self.files_area)
         files_layout.setContentsMargins(0, 0, 0, 0)
         files_layout.setSpacing(6)
-        files_layout.addWidget(section_label("选择文件（可多选）"))
+        self._files_section_label = section_label("")
+        files_layout.addWidget(self._files_section_label)
         btn_row = QHBoxLayout()
-        self.add_files_btn = QPushButton("添加文件")
+        self.add_files_btn = QPushButton()
         self.add_files_btn.clicked.connect(self._add_files)
         btn_row.addWidget(self.add_files_btn)
-        self.clear_files_btn = QPushButton("清空")
+        self.clear_files_btn = QPushButton()
         self.clear_files_btn.clicked.connect(self._clear_files)
         btn_row.addWidget(self.clear_files_btn)
         btn_row.addStretch()
@@ -103,16 +132,18 @@ class MergeFeature(QWidget):
         sheets_layout = QVBoxLayout(self.sheets_area)
         sheets_layout.setContentsMargins(0, 0, 0, 0)
         sheets_layout.setSpacing(6)
-        sheets_layout.addWidget(section_label("选择文件"))
+        self._sheet_file_section_label = section_label("")
+        sheets_layout.addWidget(self._sheet_file_section_label)
         sf_row = QHBoxLayout()
-        self.sheet_file_btn = QPushButton("选择文件")
+        self.sheet_file_btn = QPushButton()
         self.sheet_file_btn.clicked.connect(self._select_file_for_sheets)
         sf_row.addWidget(self.sheet_file_btn)
-        self.sheet_file_label = QLabel("未选择文件")
+        self.sheet_file_label = QLabel()
         sf_row.addWidget(self.sheet_file_label)
         sf_row.addStretch()
         sheets_layout.addLayout(sf_row)
-        sheets_layout.addWidget(section_label("勾选要合并的 Sheet"))
+        self._sheets_select_label = section_label("")
+        sheets_layout.addWidget(self._sheets_select_label)
         self.sheet_list = QListWidget()
         self.sheet_list.setSelectionMode(QAbstractItemView.MultiSelection)
         self.sheet_list.setMaximumHeight(100)
@@ -121,20 +152,21 @@ class MergeFeature(QWidget):
         layout.addWidget(self.sheets_area)
 
         # ── 输出 ──
-        layout.addWidget(section_label("输出目录"))
+        self._output_section_label = section_label("")
+        layout.addWidget(self._output_section_label)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
-        self.output_dir_input.setPlaceholderText("选择输出目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.output_browse_btn = QPushButton()
+        self.output_browse_btn.setFixedWidth(60)
+        self.output_browse_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.output_browse_btn)
         layout.addLayout(out_row)
 
         name_row = QHBoxLayout()
-        name_row.addWidget(section_label("输出文件名"))
+        self._output_name_label = section_label("")
+        name_row.addWidget(self._output_name_label)
         self.output_name_input = QLineEdit("合并结果.xlsx")
         self.output_name_input.setFixedWidth(250)
         name_row.addWidget(self.output_name_input)
@@ -146,7 +178,7 @@ class MergeFeature(QWidget):
         # ── 开始按钮 ──
         btn_row2 = QHBoxLayout()
         btn_row2.addStretch()
-        self.start_btn = QPushButton("▶  开始合并")
+        self.start_btn = QPushButton()
         self.start_btn.setFixedHeight(44)
         self.start_btn.clicked.connect(self._start_merge)
         btn_row2.addWidget(self.start_btn)
@@ -167,12 +199,15 @@ class MergeFeature(QWidget):
         # ── 打开目录 ──
         open_row = QHBoxLayout()
         open_row.addStretch()
-        self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
+        self.open_dir_btn = QPushButton()
         self.open_dir_btn.setVisible(False)
         self.open_dir_btn.clicked.connect(self._open_output_dir)
         open_row.addWidget(self.open_dir_btn)
         open_row.addStretch()
         layout.addLayout(open_row)
+
+        # Set initial sheet_file_label to no-file state
+        self.sheet_file_label.setText(self._lang.tr("merge.no_file"))
 
     def _on_mode_changed(self):
         is_files = self.mode_files.isChecked()
@@ -181,7 +216,7 @@ class MergeFeature(QWidget):
 
     def _add_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, self._lang.tr("merge.dialog_select_excel"), "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         for p in paths:
             if p not in self._file_paths:
@@ -194,7 +229,7 @@ class MergeFeature(QWidget):
 
     def _select_file_for_sheets(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, self._lang.tr("merge.dialog_select_excel"), "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         if file_path:
             self._file_path = file_path
@@ -206,10 +241,10 @@ class MergeFeature(QWidget):
                 for i in range(self.sheet_list.count()):
                     self.sheet_list.item(i).setSelected(True)
             except Exception as e:
-                self.sheet_file_label.setText(f"读取失败：{e}")
+                self.sheet_file_label.setText(self._lang.tr("merge.read_error", error=str(e)))
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("merge.dialog_select_output"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
             self._output_dir = dir_path
@@ -224,7 +259,7 @@ class MergeFeature(QWidget):
         self._worker = MergeWorker(self)
         if self.mode_files.isChecked():
             if len(self._file_paths) < 2:
-                self.status_label.setText("请至少添加 2 个文件")
+                self.status_label.setText(self._lang.tr("merge.need_two_files"))
                 return
             self._worker.configure(
                 mode="files", file_paths=self._file_paths,
@@ -233,7 +268,7 @@ class MergeFeature(QWidget):
         else:
             selected = [self.sheet_list.item(i).text() for i in range(self.sheet_list.count()) if self.sheet_list.item(i).isSelected()]
             if not selected or not self._file_path:
-                self.status_label.setText("请选择文件和至少一个 Sheet")
+                self.status_label.setText(self._lang.tr("merge.need_file_and_sheet"))
                 return
             self._worker.configure(
                 mode="sheets", file_path=self._file_path,
@@ -241,7 +276,7 @@ class MergeFeature(QWidget):
             )
 
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self.progress_bar.setVisible(True)
         self.open_dir_btn.setVisible(False)
         self._worker.progress.connect(self._on_progress)
@@ -257,7 +292,7 @@ class MergeFeature(QWidget):
     def _on_finished(self, summary: str):
         c = self._theme.current_colors
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始合并")
+        self.start_btn.setText(self._lang.tr("merge.start_btn"))
         self.status_label.setText(summary)
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
@@ -265,8 +300,8 @@ class MergeFeature(QWidget):
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始合并")
-        self.status_label.setText(f"❌ 合并失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("merge.start_btn"))
+        self.status_label.setText(self._lang.tr("merge.error_fmt", error=error_msg))
         self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 

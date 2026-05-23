@@ -13,6 +13,7 @@ from PySide6.QtGui import QStandardItemModel, QStandardItem, QDragEnterEvent, QD
 from core.reader import get_sheet_names, get_columns, get_unique_values
 from core.splitter import SplitWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.step_indicator import StepIndicator
 from app.widgets.common import get_combo_style, setup_preset_menu
 
@@ -27,9 +28,12 @@ class SplitFeature(QWidget):
         self._current_preview_data = {}
         self._theme = ThemeManager.instance()
         self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang = LangManager.instance()
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._setup_ui()
         self._connect_signals()
         self._apply_styles()
+        self._apply_lang()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -56,14 +60,14 @@ class SplitFeature(QWidget):
         footer_layout = QHBoxLayout(self.footer)
         footer_layout.setContentsMargins(20, 10, 20, 10)
 
-        self.back_btn = QPushButton("←  上一步")
+        self.back_btn = QPushButton()
         self.back_btn.setVisible(False)
         self.back_btn.clicked.connect(self._go_prev)
         footer_layout.addWidget(self.back_btn)
 
         footer_layout.addStretch()
 
-        self.next_btn = QPushButton("下一步  →")
+        self.next_btn = QPushButton()
         self.next_btn.setEnabled(False)
         self.next_btn.clicked.connect(self._go_next)
         footer_layout.addWidget(self.next_btn)
@@ -87,6 +91,14 @@ class SplitFeature(QWidget):
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self.back_btn.setText(self._lang.tr("split.step_back"))
+        self.next_btn.setText(self._lang.tr("split.step_next"))
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -120,10 +132,8 @@ class SplitFeature(QWidget):
         self.back_btn.setVisible(step > 0)
         self.next_btn.setVisible(step < 2)
         if step == 0:
-            self.next_btn.setText("下一步  →")
             self.next_btn.setEnabled(bool(self.step1.file_path))
         elif step == 1:
-            self.next_btn.setText("下一步  →")
             self.next_btn.setEnabled(self.step2.is_valid())
         elif step == 2:
             self.next_btn.setVisible(False)
@@ -185,8 +195,14 @@ class _Step1File(QWidget):
         super().__init__(parent)
         self.setAcceptDrops(True)
         self._file_path = ""
+        self._loaded_name = ""
+        self._file_sheets_count = 0
+        self._file_error_msg = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._setup_ui()
+        self._apply_lang()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -199,10 +215,10 @@ class _Step1File(QWidget):
         icon_label.setStyleSheet("font-size: 48px;")
         icon_label.setAlignment(Qt.AlignCenter)
         hero.addWidget(icon_label)
-        self._hero_title = QLabel("选择要拆分的 Excel 文件")
+        self._hero_title = QLabel()
         self._hero_title.setAlignment(Qt.AlignCenter)
         hero.addWidget(self._hero_title)
-        self._hero_sub = QLabel("支持 .xlsx / .xls 格式，可拖拽文件到此处")
+        self._hero_sub = QLabel()
         self._hero_sub.setAlignment(Qt.AlignCenter)
         hero.addWidget(self._hero_sub)
         layout.addLayout(hero)
@@ -218,14 +234,14 @@ class _Step1File(QWidget):
         dz_icon.setStyleSheet("font-size: 36px;")
         dz_icon.setAlignment(Qt.AlignCenter)
         dz_layout.addWidget(dz_icon)
-        self._dz_text = QLabel("拖拽 Excel 文件到此处")
+        self._dz_text = QLabel()
         self._dz_text.setAlignment(Qt.AlignCenter)
         dz_layout.addWidget(self._dz_text)
         layout.addWidget(self.drop_zone)
 
         btn_row = QHBoxLayout()
         btn_row.setAlignment(Qt.AlignCenter)
-        self.browse_btn = QPushButton("浏览选择文件")
+        self.browse_btn = QPushButton()
         self.browse_btn.clicked.connect(self._browse_file)
         btn_row.addWidget(self.browse_btn)
         layout.addLayout(btn_row)
@@ -235,6 +251,31 @@ class _Step1File(QWidget):
         self.file_info.setWordWrap(True)
         layout.addWidget(self.file_info)
         layout.addStretch()
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self._hero_title.setText(self._lang.tr("split.hero_title"))
+        self._hero_sub.setText(self._lang.tr("split.hero_sub"))
+        self._dz_text.setText(self._lang.tr("split.drop_hint"))
+        self.browse_btn.setText(self._lang.tr("split.browse_btn"))
+        self._update_file_info_text()
+
+    def _update_file_info_text(self):
+        """Update file_info label based on stored state."""
+        c = self._theme.current_colors
+        if self._file_error_msg:
+            self.file_info.setText(self._lang.tr("split.file_error", error=self._file_error_msg))
+            self.file_info.setStyleSheet(f"color: {c['DANGER']}; font-size: 10pt;")
+        elif self._loaded_name:
+            self.file_info.setText(
+                self._lang.tr("split.file_loaded", name=self._loaded_name, count=self._file_sheets_count)
+            )
+            self.file_info.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 11pt; font-weight: bold; margin-top: 8px;")
+        else:
+            self.file_info.setText("")
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -249,7 +290,7 @@ class _Step1File(QWidget):
 
     def _browse_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
+            self, self._lang.tr("split.hero_title"), "", "Excel 文件 (*.xlsx *.xls);;所有文件 (*)"
         )
         if file_path:
             self._load_file(file_path)
@@ -258,15 +299,16 @@ class _Step1File(QWidget):
         try:
             sheets = get_sheet_names(file_path)
             self._file_path = file_path
-            basename = os.path.basename(file_path)
-            self.file_info.setText(f"✅ 已加载：{basename}（共 {len(sheets)} 个 Sheet）")
-            c = self._theme.current_colors
-            self.file_info.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 11pt; font-weight: bold; margin-top: 8px;")
+            self._loaded_name = os.path.basename(file_path)
+            self._file_sheets_count = len(sheets)
+            self._file_error_msg = ""
+            self._update_file_info_text()
             self.file_selected.emit(file_path, sheets)
         except Exception as e:
-            self.file_info.setText(f"❌ 无法读取文件：{e}")
-            c = self._theme.current_colors
-            self.file_info.setStyleSheet(f"color: {c['DANGER']}; font-size: 10pt;")
+            self._file_error_msg = str(e)
+            self._loaded_name = ""
+            self._file_sheets_count = 0
+            self._update_file_info_text()
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
@@ -304,15 +346,18 @@ class _Step2Config(QWidget):
         self._current_values: dict = {}
         self._current_column = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._prefix_presets = [
-            ("无", ""), ("日期_", "2024年_"), ("数据_", "数据_"),
+            ("", ""), ("2024年_", "2024年_"), ("数据_", "数据_"),
             ("报表_", "报表_"), ("分类_", "分类_"), ("导出_", "导出_"),
         ]
         self._suffix_presets = [
-            ("无", ""), ("_副本", "_副本"), ("_统计", "_统计"),
+            ("", ""), ("_副本", "_副本"), ("_统计", "_统计"),
             ("_汇总", "_汇总"), ("_结果", "_结果"), ("_整理", "_整理"),
         ]
         self._setup_ui()
+        self._apply_lang()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -323,29 +368,27 @@ class _Step2Config(QWidget):
         row1.setSpacing(20)
         g1 = QVBoxLayout()
         g1.setSpacing(4)
-        self._sheet_section_label = QLabel("选择 Sheet")
+        self._sheet_section_label = QLabel()
         g1.addWidget(self._sheet_section_label)
         self.sheet_combo = QComboBox()
-        self.sheet_combo.setPlaceholderText("请先选择文件")
         self.sheet_combo.currentTextChanged.connect(self._on_sheet_changed)
         g1.addWidget(self.sheet_combo)
         row1.addLayout(g1)
         g2 = QVBoxLayout()
         g2.setSpacing(4)
-        self._column_section_label = QLabel("拆分字段")
+        self._column_section_label = QLabel()
         g2.addWidget(self._column_section_label)
         self.column_combo = QComboBox()
-        self.column_combo.setPlaceholderText("请先选择 Sheet")
         self.column_combo.currentTextChanged.connect(self._on_column_changed)
         g2.addWidget(self.column_combo)
         row1.addLayout(g2)
         layout.addLayout(row1)
 
-        self._mode_section_label = QLabel("拆分模式")
+        self._mode_section_label = QLabel()
         layout.addWidget(self._mode_section_label)
         mode_row = QHBoxLayout()
-        self.mode_files = QRadioButton("拆分为独立文件")
-        self.mode_sheets = QRadioButton("拆分为多个 Sheet")
+        self.mode_files = QRadioButton()
+        self.mode_sheets = QRadioButton()
         self.mode_files.setChecked(True)
         self.mode_files.toggled.connect(self._on_mode_changed)
         mode_row.addWidget(self.mode_files)
@@ -353,20 +396,19 @@ class _Step2Config(QWidget):
         mode_row.addStretch()
         layout.addLayout(mode_row)
 
-        self._output_section_label = QLabel("输出目录")
+        self._output_section_label = QLabel()
         layout.addWidget(self._output_section_label)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
-        self.output_dir_input.setPlaceholderText("默认与源文件相同目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.out_btn = QPushButton()
+        self.out_btn.setFixedWidth(60)
+        self.out_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.out_btn)
         layout.addLayout(out_row)
 
-        self.naming_title = QLabel("文件命名")
+        self.naming_title = QLabel()
         layout.addWidget(self.naming_title)
         self.naming_container = QWidget()
         naming_layout = QVBoxLayout(self.naming_container)
@@ -377,7 +419,6 @@ class _Step2Config(QWidget):
         prefix_group = QHBoxLayout()
         prefix_group.setSpacing(1)
         self.prefix_input = QLineEdit()
-        self.prefix_input.setPlaceholderText("前缀")
         self.prefix_input.setFixedWidth(90)
         self.prefix_input.textChanged.connect(self._update_naming_preview)
         prefix_group.addWidget(self.prefix_input)
@@ -390,9 +431,7 @@ class _Step2Config(QWidget):
         self._plus1 = QLabel("+")
         name_row.addWidget(self._plus1)
         self.field_btn = QToolButton()
-        self.field_btn.setText("{字段值}")
         self.field_btn.setPopupMode(QToolButton.InstantPopup)
-        self.field_btn.setToolTip("点击查看该字段的所有值")
         self.field_btn.setEnabled(False)
         name_row.addWidget(self.field_btn)
         self._plus2 = QLabel("+")
@@ -400,7 +439,6 @@ class _Step2Config(QWidget):
         suffix_group = QHBoxLayout()
         suffix_group.setSpacing(1)
         self.suffix_input = QLineEdit()
-        self.suffix_input.setPlaceholderText("后缀")
         self.suffix_input.setFixedWidth(90)
         self.suffix_input.textChanged.connect(self._update_naming_preview)
         suffix_group.addWidget(self.suffix_input)
@@ -414,10 +452,47 @@ class _Step2Config(QWidget):
         name_row.addWidget(self._dot_label)
         name_row.addStretch()
         naming_layout.addLayout(name_row)
-        self.naming_preview = QLabel("预览：选择字段后将显示示例")
+        self.naming_preview = QLabel()
         naming_layout.addWidget(self.naming_preview)
         layout.addWidget(self.naming_container)
         layout.addStretch()
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self._sheet_section_label.setText(self._lang.tr("split.select_sheet"))
+        self.sheet_combo.setPlaceholderText(self._lang.tr("split.select_sheet_placeholder"))
+        self._column_section_label.setText(self._lang.tr("split.split_column"))
+        self.column_combo.setPlaceholderText(self._lang.tr("split.select_column_placeholder"))
+        self._mode_section_label.setText(self._lang.tr("split.split_mode"))
+        self.mode_files.setText(self._lang.tr("split.mode_files"))
+        self.mode_sheets.setText(self._lang.tr("split.mode_sheets"))
+        self._output_section_label.setText(self._lang.tr("split.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("split.output_dir_placeholder"))
+        self.out_btn.setText(self._lang.tr("label.browse"))
+        self.naming_title.setText(self._lang.tr("split.file_naming"))
+        self.prefix_input.setPlaceholderText(self._lang.tr("split.prefix_placeholder"))
+        self.suffix_input.setPlaceholderText(self._lang.tr("split.suffix_placeholder"))
+        self.field_btn.setToolTip(self._lang.tr("split.field_tooltip"))
+        # Update presets with translated "None"
+        none_text = self._lang.tr("split.preset_none")
+        self._prefix_presets[0] = (none_text, "")
+        self._suffix_presets[0] = (none_text, "")
+        # Rebuild dynamic texts
+        self._update_naming_preview()
+        if self._current_values:
+            self._build_field_menu(self._current_values)
+        else:
+            self.field_btn.setText(f"{{{self._lang.tr('split.col_value')}}}")
+        # If no values loaded yet, show the hint
+        if not self._current_values:
+            self.naming_preview.setText(self._lang.tr("split.naming_preview_hint"))
+        # Rebuild preset menus
+        c = self._theme.current_colors
+        setup_preset_menu(self._p_btn, self.prefix_input, self._prefix_presets, c)
+        setup_preset_menu(self._s_btn, self.suffix_input, self._suffix_presets, c)
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -514,13 +589,17 @@ class _Step2Config(QWidget):
         max_count = max(values.values()) if values else 1
         for val, count in sorted_items:
             bar = "█" * int(count / max_count * 12)
-            menu.addAction(f"{val}  ({count} 行)  {bar}").setEnabled(False)
+            menu.addAction(
+                self._lang.tr("split.field_item_fmt", val=val, count=count, bar=bar)
+            ).setEnabled(False)
         if len(sorted_items) > 20:
             menu.addSeparator()
-            menu.addAction(f"... 共 {len(sorted_items)} 个值").setEnabled(False)
+            menu.addAction(
+                self._lang.tr("split.field_more_fmt", n=len(sorted_items))
+            ).setEnabled(False)
         self.field_btn.setMenu(menu)
-        cn = self._current_column or "字段值"
-        self.field_btn.setText(f"{{{cn}}}  ({len(values)}个)")
+        cn = self._current_column or self._lang.tr("split.col_value")
+        self.field_btn.setText(self._lang.tr("split.field_btn_fmt", cn=cn, n=len(values)))
 
     def _on_mode_changed(self):
         is_files = self.mode_files.isChecked()
@@ -531,12 +610,12 @@ class _Step2Config(QWidget):
     def _update_naming_preview(self):
         prefix = self.prefix_input.text().strip()
         suffix = self.suffix_input.text().strip()
-        example = next(iter(self._current_values), "字段值")
+        example = next(iter(self._current_values), self._lang.tr("split.col_value"))
         sample = f"{prefix}{example}{suffix}.xlsx"
-        self.naming_preview.setText(f"预览：{sample}")
+        self.naming_preview.setText(self._lang.tr("split.naming_preview_fmt", sample=sample))
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("split.dialog_output_dir"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
 
@@ -573,7 +652,10 @@ class _Step3Execute(QWidget):
         self._mode = "files"
         self._column_name = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._setup_ui()
+        self._apply_lang()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -581,13 +663,12 @@ class _Step3Execute(QWidget):
         layout.setSpacing(16)
 
         preview_header = QHBoxLayout()
-        self._preview_label = QLabel("\U0001F50D  数据预览")
+        self._preview_label = QLabel()
         preview_header.addWidget(self._preview_label)
         self.summary_label = QLabel("")
         preview_header.addWidget(self.summary_label)
         preview_header.addStretch()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("搜索过滤...")
         self.search_input.setFixedWidth(180)
         self.search_input.setVisible(False)
         self.search_input.textChanged.connect(self._apply_filter)
@@ -608,7 +689,7 @@ class _Step3Execute(QWidget):
         self.table_view.setMinimumHeight(120)
         self.model = QStandardItemModel()
         self.model.setColumnCount(3)
-        self.model.setHorizontalHeaderLabels(["字段值", "行数", "占比"])
+        # Headers set by _apply_lang
         self.proxy_model = QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.model)
         self.proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
@@ -632,7 +713,7 @@ class _Step3Execute(QWidget):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self.start_btn = QPushButton("▶  开始拆分")
+        self.start_btn = QPushButton()
         self.start_btn.setFixedHeight(44)
         self.start_btn.setEnabled(False)
         self.start_btn.clicked.connect(self._on_start)
@@ -655,13 +736,31 @@ class _Step3Execute(QWidget):
         bottom_layout.addWidget(self.status_label)
         open_row = QHBoxLayout()
         open_row.addStretch()
-        self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
+        self.open_dir_btn = QPushButton()
         self.open_dir_btn.setVisible(False)
         self.open_dir_btn.clicked.connect(self._open_output_dir)
         open_row.addWidget(self.open_dir_btn)
         open_row.addStretch()
         bottom_layout.addLayout(open_row)
         layout.addWidget(self.bottom_area)
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self._preview_label.setText(self._lang.tr("split.preview_title"))
+        self.search_input.setPlaceholderText(self._lang.tr("split.search_placeholder"))
+        self.model.setHorizontalHeaderLabels([
+            self._lang.tr("split.col_value"),
+            self._lang.tr("split.col_rows"),
+            self._lang.tr("split.col_pct"),
+        ])
+        self.start_btn.setText(self._lang.tr("split.start_btn"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
+        # Rebuild info banner and summary with current data
+        self._update_info_banner()
+        self._refresh_summary()
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -683,11 +782,11 @@ class _Step3Execute(QWidget):
 
     def _on_start(self):
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self._info_banner.setVisible(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        self.status_label.setText("正在读取数据...")
+        self.status_label.setText(self._lang.tr("split.reading_data"))
         self.open_dir_btn.setVisible(False)
         self.start_requested.emit()
 
@@ -708,11 +807,22 @@ class _Step3Execute(QWidget):
             pct = f"{count / total_rows * 100:.1f}%"
             self.model.appendRow([QStandardItem(str(value)), QStandardItem(str(count)), QStandardItem(pct)])
         vc = len(rows)
-        self.summary_label.setText(f"共 {vc} 个不同值，{total_rows} 行数据")
+        self._refresh_summary()
         self.search_input.setVisible(vc > 10)
         if vc <= 10:
             self.search_input.clear()
         self._update_info_banner()
+
+    def _refresh_summary(self):
+        """Refresh the summary label text using current language."""
+        vc = self.model.rowCount()
+        if vc == 0:
+            self.summary_label.setText("")
+            return
+        total_rows = 0
+        for r in range(vc):
+            total_rows += int(self.model.item(r, 1).text())
+        self.summary_label.setText(self._lang.tr("split.summary_fmt", vc=vc, total_rows=total_rows))
 
     def _update_info_banner(self):
         if not self._column_name or self.model.rowCount() == 0:
@@ -722,8 +832,14 @@ class _Step3Execute(QWidget):
         total = 0
         for r in range(vc):
             total += int(self.model.item(r, 1).text())
-        unit = "文件" if self._mode == "files" else "Sheet"
-        self._info_banner.setText(f"将按「{self._column_name}」拆分为 {vc} 个{unit}，共 {total} 行数据")
+        if self._mode == "files":
+            self._info_banner.setText(
+                self._lang.tr("split.info_banner_files", column=self._column_name, vc=vc, total=total)
+            )
+        else:
+            self._info_banner.setText(
+                self._lang.tr("split.info_banner_sheets", column=self._column_name, vc=vc, total=total)
+            )
         self._info_banner.setVisible(True)
 
     def _apply_filter(self, text: str):
@@ -739,7 +855,7 @@ class _Step3Execute(QWidget):
 
     def on_finished(self, summary: str):
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("✓ 拆分完成")
+        self.start_btn.setText(self._lang.tr("split.done"))
         self.status_label.setText(summary)
         c = self._theme.current_colors
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
@@ -747,8 +863,8 @@ class _Step3Execute(QWidget):
 
     def on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始拆分")
-        self.status_label.setText(f"❌ 拆分失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("split.start_btn"))
+        self.status_label.setText(self._lang.tr("split.error_fmt", error=error_msg))
         c = self._theme.current_colors
         self.status_label.setStyleSheet(f"color: {c['DANGER']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)

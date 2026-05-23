@@ -23,11 +23,20 @@ jobs:
       - name: Build EXE
         run: pyinstaller build_win.spec --noconfirm
 
+      - name: Rename with platform + arch
+        shell: pwsh
+        run: |
+          $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
+          if ($arch -eq "amd64") { $arch = "x64" }
+          $name = "GridFlow-Windows-${arch}.exe"
+          Rename-Item -Path dist\GridFlow.exe -NewName $name
+          echo "ARTIFACT_NAME=$name" >> $env:GITHUB_ENV
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GridFlow-Windows
-          path: dist/GridFlow.exe
+          name: GridFlow-Windows-${{ runner.arch }}
+          path: dist/GridFlow-Windows-*.exe
 
   build-macos:
     runs-on: macos-latest
@@ -45,11 +54,16 @@ jobs:
       - name: Build .app
         run: pyinstaller build_macos.spec --noconfirm
 
+      - name: Zip .app with platform + arch
+        run: |
+          arch=$(uname -m)
+          zip -r "GridFlow-macOS-${arch}.zip" dist/GridFlow.app
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GridFlow-macOS
-          path: dist/GridFlow.app
+          name: GridFlow-macOS-${{ runner.arch }}
+          path: GridFlow-macOS-*.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -72,8 +86,15 @@ jobs:
       - name: Build binary
         run: pyinstaller build_linux.spec --noconfirm
 
+      - name: Rename with platform + arch
+        run: |
+          arch=$(uname -m)
+          name="GridFlow-Linux-${arch}"
+          mv dist/GridFlow "dist/${name}"
+          chmod +x "dist/${name}"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GridFlow-Linux
-          path: dist/GridFlow
+          name: GridFlow-Linux-${{ runner.arch }}
+          path: dist/GridFlow-Linux-*

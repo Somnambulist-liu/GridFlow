@@ -10,24 +10,24 @@ from PySide6.QtCore import Signal, Qt
 from core.reader import get_sheet_names, get_columns
 from core.filter_engine import FilterWorker
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 from app.widgets.common import get_combo_style, section_label
 
 
-OPERATORS = [
-    ("等于", "eq"),
-    ("不等于", "neq"),
-    ("大于", "gt"),
-    ("小于", "lt"),
-    ("大于等于", "gte"),
-    ("小于等于", "lte"),
-    ("包含", "contains"),
-    ("不包含", "not_contains"),
-    ("介于", "between"),
-    ("为空", "is_empty"),
-    ("非空", "not_empty"),
+# Operator definitions: (i18n_key, code)
+_OPERATOR_DEFS = [
+    ("filter.operator_eq", "eq"),
+    ("filter.operator_neq", "neq"),
+    ("filter.operator_gt", "gt"),
+    ("filter.operator_lt", "lt"),
+    ("filter.operator_gte", "gte"),
+    ("filter.operator_lte", "lte"),
+    ("filter.operator_contains", "contains"),
+    ("filter.operator_not_contains", "not_contains"),
+    ("filter.operator_between", "between"),
+    ("filter.operator_is_empty", "is_empty"),
+    ("filter.operator_not_empty", "not_empty"),
 ]
-
-OP_LABELS = {op: label for label, op in OPERATORS}
 
 
 class ConditionRow(QWidget):
@@ -37,8 +37,11 @@ class ConditionRow(QWidget):
         super().__init__(parent)
         self._idx = idx
         self._theme = theme
+        self._lang = LangManager.instance()
+        self._lang.lang_changed.connect(self._on_lang_changed)
         self._setup_ui(columns)
         self._apply_styles()
+        self._apply_lang()
 
     def _setup_ui(self, columns):
         row = QHBoxLayout(self)
@@ -50,17 +53,15 @@ class ConditionRow(QWidget):
         row.addWidget(self.column_combo)
 
         self.op_combo = QComboBox()
-        for label, _ in OPERATORS:
-            self.op_combo.addItem(label)
+        for key, _ in _OPERATOR_DEFS:
+            self.op_combo.addItem(key)  # placeholder, _apply_lang replaces
         self.op_combo.currentIndexChanged.connect(self._on_op_changed)
         row.addWidget(self.op_combo)
 
         self.value_input = QLineEdit()
-        self.value_input.setPlaceholderText("值")
         row.addWidget(self.value_input)
 
         self.value2_input = QLineEdit()
-        self.value2_input.setPlaceholderText("最大值")
         self.value2_input.setVisible(False)
         row.addWidget(self.value2_input)
 
@@ -69,8 +70,25 @@ class ConditionRow(QWidget):
         del_btn.clicked.connect(lambda: self.removed.emit(self))
         row.addWidget(del_btn)
 
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self.value_input.setPlaceholderText(self._lang.tr("filter.value_placeholder"))
+        self.value2_input.setPlaceholderText(self._lang.tr("filter.max_placeholder"))
+        # Rebuild operator combo items with translated labels
+        idx = self.op_combo.currentIndex()
+        self.op_combo.blockSignals(True)
+        self.op_combo.clear()
+        for key, _ in _OPERATOR_DEFS:
+            self.op_combo.addItem(self._lang.tr(key))
+        if idx >= 0 and idx < self.op_combo.count():
+            self.op_combo.setCurrentIndex(idx)
+        self.op_combo.blockSignals(False)
+
+    def _on_lang_changed(self, _):
+        self._apply_lang()
+
     def _on_op_changed(self):
-        op = OPERATORS[self.op_combo.currentIndex()][1]
+        op = _OPERATOR_DEFS[self.op_combo.currentIndex()][1]
         self.value2_input.setVisible(op == "between")
         self.value_input.setVisible(op not in ("is_empty", "not_empty"))
 
@@ -80,7 +98,7 @@ class ConditionRow(QWidget):
         self.op_combo.setStyleSheet(get_combo_style(c))
 
     def get_condition(self) -> dict | None:
-        op = OPERATORS[self.op_combo.currentIndex()][1]
+        op = _OPERATOR_DEFS[self.op_combo.currentIndex()][1]
         col = self.column_combo.currentText()
         if not col:
             return None
@@ -106,13 +124,38 @@ class FilterFeature(QWidget):
         self._file_path = ""
         self._output_dir = ""
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
         self._condition_rows: list[ConditionRow] = []
         self._setup_ui()
         self._apply_styles()
         self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
+        self._apply_lang()
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_styles()
+
+    def _on_lang_changed(self, _):
+        self._apply_lang()
+
+    def _apply_lang(self):
+        """Update all user-visible text from current language."""
+        self.sec_file.setText(self._lang.tr("label.file"))
+        self.file_btn.setText(self._lang.tr("label.select_file"))
+        self.file_label.setText(self._lang.tr("label.no_file"))
+        self.sec_sheet.setText(self._lang.tr("label.sheet"))
+        self.sec_logic.setText(self._lang.tr("filter.condition_logic"))
+        self.logic_and.setText(self._lang.tr("filter.logic_and"))
+        self.logic_or.setText(self._lang.tr("filter.logic_or"))
+        self.sec_conditions.setText(self._lang.tr("filter.filter_conditions"))
+        self.add_cond_btn.setText(self._lang.tr("filter.add_condition"))
+        self.sec_output.setText(self._lang.tr("label.output_dir"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("label.default_out_dir"))
+        self.out_btn.setText(self._lang.tr("label.browse"))
+        self.start_btn.setText(self._lang.tr("filter.start"))
+        self.open_dir_btn.setText(self._lang.tr("common.open_output_dir"))
+        for cr in self._condition_rows:
+            cr._apply_lang()
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -151,7 +194,8 @@ class FilterFeature(QWidget):
         layout.setSpacing(12)
 
         # ── 选择文件 ──
-        layout.addWidget(section_label("选择文件"))
+        self.sec_file = section_label("选择文件")
+        layout.addWidget(self.sec_file)
         file_row = QHBoxLayout()
         self.file_btn = QPushButton("选择文件")
         self.file_btn.clicked.connect(self._select_file)
@@ -162,13 +206,15 @@ class FilterFeature(QWidget):
         layout.addLayout(file_row)
 
         # ── Sheet ──
-        layout.addWidget(section_label("选择 Sheet"))
+        self.sec_sheet = section_label("选择 Sheet")
+        layout.addWidget(self.sec_sheet)
         self.sheet_combo = QComboBox()
         self.sheet_combo.currentTextChanged.connect(self._on_sheet_changed)
         layout.addWidget(self.sheet_combo)
 
         # ── 条件逻辑 ──
-        layout.addWidget(section_label("条件逻辑"))
+        self.sec_logic = section_label("条件逻辑")
+        layout.addWidget(self.sec_logic)
         logic_row = QHBoxLayout()
         self.logic_and = QRadioButton("AND（全部满足）")
         self.logic_or = QRadioButton("OR（任一满足）")
@@ -179,7 +225,8 @@ class FilterFeature(QWidget):
         layout.addLayout(logic_row)
 
         # ── 条件列表 ──
-        layout.addWidget(section_label("筛选条件"))
+        self.sec_conditions = section_label("筛选条件")
+        layout.addWidget(self.sec_conditions)
         self.add_cond_btn = QPushButton("+ 添加条件")
         self.add_cond_btn.clicked.connect(self._add_condition)
         layout.addWidget(self.add_cond_btn)
@@ -189,16 +236,17 @@ class FilterFeature(QWidget):
         layout.addLayout(self.conditions_area)
 
         # ── 输出 ──
-        layout.addWidget(section_label("输出目录"))
+        self.sec_output = section_label("输出目录")
+        layout.addWidget(self.sec_output)
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
         self.output_dir_input.setPlaceholderText("默认与源文件相同目录")
         out_row.addWidget(self.output_dir_input)
-        out_btn = QPushButton("浏览")
-        out_btn.setFixedWidth(60)
-        out_btn.clicked.connect(self._browse_output_dir)
-        out_row.addWidget(out_btn)
+        self.out_btn = QPushButton("浏览")
+        self.out_btn.setFixedWidth(60)
+        self.out_btn.clicked.connect(self._browse_output_dir)
+        out_row.addWidget(self.out_btn)
         layout.addLayout(out_row)
 
         layout.addStretch()
@@ -235,7 +283,7 @@ class FilterFeature(QWidget):
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 Excel 文件", "", "Excel 文件 (*.xlsx *.xls *.csv);;所有文件 (*)"
+            self, self._lang.tr("label.file_dialog"), "", "Excel 文件 (*.xlsx *.xls *.csv);;所有文件 (*)"
         )
         if file_path:
             self._file_path = file_path
@@ -248,7 +296,7 @@ class FilterFeature(QWidget):
                 if sheets:
                     self._on_sheet_changed(sheets[0])
             except Exception as e:
-                self.file_label.setText(f"读取失败：{e}")
+                self.file_label.setText(self._lang.tr("label.read_error", error=str(e)))
             self.sheet_combo.blockSignals(False)
 
     def _on_sheet_changed(self, sheet_name: str):
@@ -287,20 +335,20 @@ class FilterFeature(QWidget):
             self._remove_condition(row)
 
     def _browse_output_dir(self):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        dir_path = QFileDialog.getExistingDirectory(self, self._lang.tr("label.dir_dialog"))
         if dir_path:
             self.output_dir_input.setText(dir_path)
 
     def _start_filter(self):
         sheet = self.sheet_combo.currentText()
         if not self._file_path or not sheet:
-            self.status_label.setText("请选择文件和 Sheet")
+            self.status_label.setText(self._lang.tr("label.select_file_and_sheet"))
             return
 
         conditions = [cr.get_condition() for cr in self._condition_rows]
         conditions = [c for c in conditions if c is not None]
         if not conditions:
-            self.status_label.setText("请至少添加一个有效条件")
+            self.status_label.setText(self._lang.tr("filter.add_valid_condition"))
             return
 
         output_dir = self.output_dir_input.text().strip() or os.path.dirname(self._file_path)
@@ -316,7 +364,7 @@ class FilterFeature(QWidget):
             output_dir=output_dir, output_name=output_name,
         )
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("处理中...")
+        self.start_btn.setText(self._lang.tr("common.processing"))
         self.progress_bar.setVisible(True)
         self.open_dir_btn.setVisible(False)
         self._worker.progress.connect(self._on_progress)
@@ -332,7 +380,7 @@ class FilterFeature(QWidget):
     def _on_finished(self, summary: str):
         c = self._theme.current_colors
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始筛选")
+        self.start_btn.setText(self._lang.tr("filter.start"))
         self.status_label.setText(summary)
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
@@ -340,8 +388,8 @@ class FilterFeature(QWidget):
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("▶  开始筛选")
-        self.status_label.setText(f"❌ 筛选失败：{error_msg}")
+        self.start_btn.setText(self._lang.tr("filter.start"))
+        self.status_label.setText(self._lang.tr("filter.error_failed", error=error_msg))
         self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 

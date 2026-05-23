@@ -1,20 +1,25 @@
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget, QVBoxLayout
 from PySide6.QtCore import Signal, Qt
 from app.theme_manager import ThemeManager
+from app.i18n import LangManager
 
 
 class StepIndicator(QFrame):
     step_clicked = Signal(int)  # step index (0-based)
 
-    STEPS = ["选择文件", "拆分配置", "预览执行"]
+    STEP_KEYS = ["split.step1", "split.step2", "split.step3"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(72)
         self._current = 0
         self._theme = ThemeManager.instance()
+        self._lang = LangManager.instance()
+        self._step_widgets = []
         self._setup_ui()
+        self._apply_lang()
         self._theme.theme_changed.connect(self._on_theme_changed)
+        self._lang.lang_changed.connect(self._on_lang_changed)
 
     def _setup_ui(self):
         layout = QHBoxLayout(self)
@@ -26,7 +31,7 @@ class StepIndicator(QFrame):
         self._circle_labels = []
         self._line_frames = []
 
-        for i, name in enumerate(self.STEPS):
+        for i, key in enumerate(self.STEP_KEYS):
             if i > 0:
                 line = QFrame()
                 line.setFixedSize(60, 2)
@@ -35,7 +40,7 @@ class StepIndicator(QFrame):
                 self._step_widgets.append(("line", line))
                 self._line_frames.append(line)
 
-            step_widget = self._make_step(i + 1, name)
+            step_widget = self._make_step(i + 1, "")
             layout.addWidget(step_widget)
             self._step_widgets.append(("step", step_widget))
 
@@ -63,6 +68,16 @@ class StepIndicator(QFrame):
         widget.circle = circle
         widget.label = label
         return widget
+
+    def _apply_lang(self):
+        for item_type, widget in self._step_widgets:
+            if item_type == "step":
+                step_num = int(widget.circle.objectName().replace("circle", ""))
+                key = self.STEP_KEYS[step_num - 1]
+                widget.label.setText(self._lang.tr(key))
+
+    def _on_lang_changed(self, _lang: str):
+        self._apply_lang()
 
     def _apply_theme(self):
         c = self._theme.current_colors
