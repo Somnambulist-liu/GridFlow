@@ -10,6 +10,7 @@ from PySide6.QtGui import QIcon
 from app.theme_manager import ThemeManager
 from app.styles import build_global_stylesheet
 from app.home_page import HomePage
+from app.pipeline import PipelineContext
 
 
 class MainWindow(QMainWindow):
@@ -19,6 +20,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("GridFlow")
         self._theme = ThemeManager.instance()
+        self.pipeline = PipelineContext(self)
 
         base = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
         icon_ext = "ico" if sys.platform == "win32" else "png"
