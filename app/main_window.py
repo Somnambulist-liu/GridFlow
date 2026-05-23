@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
             f"font-size: 9pt; color: {c['TEXT_MUTED']};"
         )
 
+        self.settings_btn.setText(self._lang.tr("btn.settings"))
         self.settings_btn.setStyleSheet(
             f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
             f"border-radius: {c['RADIUS_SM']}px; padding: 4px 10px; font-size: 12pt; }} "
