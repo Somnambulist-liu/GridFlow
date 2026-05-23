@@ -4,7 +4,7 @@
   <img src="resources/icon.png" alt="GridFlow Logo" width="128" height="128">
 </p>
 
-<p align="center"><strong>表格数据流式处理工具箱 — 轻量、快速、离线可用</strong></p>
+<p align="center"><strong>表格数据流式处理工具箱 — 轻量、快速、离线可用 | v3.0</strong></p>
 
 ---
 
@@ -24,6 +24,8 @@ GridFlow 由此诞生 —— **一个单文件 EXE，双击即用，所有数据
 
 ## 功能介绍
 
+### 数据处理
+
 | ✂️ | 🔗 |
 |:---:|:---:|
 | **表格拆分** | **表格合并** |
@@ -33,6 +35,16 @@ GridFlow 由此诞生 —— **一个单文件 EXE，双击即用，所有数据
 |:---:|:---:|
 | **数据去重** | **格式转换** |
 | 按指定列检测并删除重复行，可选保留首/尾 | XLSX / CSV 批量互转 |
+
+| 🔍 | 📋 |
+|:---:|:---:|
+| **数据筛选** | **列操作** |
+| 按条件过滤行，支持 11 种运算符、AND/OR 组合 | 保留/删除/重命名/重排列序，支持简单计算列 |
+
+| 📊 | ✅ |
+|:---:|:---:|
+| **透视表** | **数据校验** |
+| 行/列/值字段交叉聚合，计数/求和/平均/最值 | 空值检测、异常值(IQR)、类型检查、重复行检测 |
 
 ### 表格拆分
 按任意列（地区、部门、产品等）将数据拆分为多个独立文件，或输出到单个文件的多个 Sheet 中。支持预设常用字段，一键选中。
@@ -47,38 +59,63 @@ GridFlow 由此诞生 —— **一个单文件 EXE，双击即用，所有数据
 ### 格式转换
 批量选择文件，一键在 XLSX 和 CSV 之间互转。支持指定输出目录，转换完成后自动打开。
 
+### 数据筛选
+按条件过滤数据行：等于、不等于、大于、小于、介于、包含、为空等 11 种运算符。支持 AND/OR 多条件组合，流式读取输出匹配结果。
+
+### 列操作
+勾选保留/删除列、拖拽调整列序、重命名列。支持简单计算列（如 `{单价} * {数量}`），包含公式预览。
+
+### 透视表
+选择行字段、列字段、值字段，聚合方式支持计数、求和、平均、最小、最大。输出含行列合计的完整交叉表。
+
+### 数据校验
+四种校验类型：空值检测（可设阈值百分比）、异常值检测（IQR 四分位距法）、类型一致性检查、重复行检测。生成详细校验报告 XLSX。
+
 ---
 
 ## 技术架构
 
 ```
 sheet2split/
-├── main.py                 # 入口
+├── main.py                  # 入口
 ├── app/
-│   ├── main_window.py      # 根容器：首页 + 功能路由
-│   ├── home_page.py        # 功能卡片首页
-│   ├── theme.py            # 全局配色
-│   ├── styles.py           # QSS 样式
-│   ├── step_indicator.py   # 步骤指示器
+│   ├── main_window.py       # 根容器：首页 + 功能路由
+│   ├── home_page.py         # 功能卡片首页（2×4 网格）
+│   ├── theme.py             # 浅色/深色双配色方案
+│   ├── theme_manager.py     # 动态主题管理器（单例）
+│   ├── styles.py            # QSS 全局样式（动态配色）
+│   ├── step_indicator.py    # 步骤指示器（拆分功能）
+│   ├── settings.py          # QSettings 持久化
+│   ├── pipeline.py          # 功能流水线（共享输出）
+│   ├── presets.py           # 预设存取（JSON）
+│   ├── platform_utils.py    # 跨平台文件操作
 │   ├── widgets/
-│   │   └── common.py       # 共享 UI 组件
+│   │   └── common.py        # 共享 UI 组件
 │   └── features/
-│       ├── split.py        # 表格拆分
-│       ├── merge.py        # 表格合并
-│       ├── dedup.py        # 数据去重
-│       └── convert.py      # 格式转换
+│       ├── split.py         # 表格拆分
+│       ├── merge.py         # 表格合并
+│       ├── dedup.py         # 数据去重
+│       ├── convert.py       # 格式转换
+│       ├── filter.py        # 数据筛选
+│       ├── columns.py       # 列操作
+│       ├── pivot.py         # 透视表
+│       └── validate.py      # 数据校验
 └── core/
-    ├── reader.py           # openpyxl 流式读取
-    ├── splitter.py         # 拆分 Worker
-    ├── merger.py           # 合并 Worker
-    ├── deduper.py          # 去重 Worker
-    └── converter.py        # 转换 Worker
+    ├── reader.py            # openpyxl 流式读取
+    ├── splitter.py          # 拆分 Worker
+    ├── merger.py            # 合并 Worker
+    ├── deduper.py           # 去重 Worker
+    ├── converter.py         # 转换 Worker
+    ├── filter_engine.py     # 筛选 Worker
+    ├── column_ops.py        # 列操作 Worker
+    ├── pivoter.py           # 透视表 Worker
+    └── validator.py         # 校验 Worker
 ```
 
-- **GUI**：PySide6（Qt for Python），QSS 主题定制
+- **GUI**：PySide6（Qt for Python），QSS 主题定制，支持浅色/深色模式一键切换
 - **数据处理**：openpyxl（read_only 流式读取 + Workbook 写入），无需 pandas
 - **并发模型**：QThread Worker，progress / finished / error 信号驱动 UI 更新
-- **打包**：PyInstaller 单文件 EXE，排除 30+ 未使用的 Qt 模块，最终体积约 62MB
+- **打包**：PyInstaller，支持 Windows (.exe) / macOS (.app) / Linux，排除 30+ 未使用的 Qt 模块
 
 ---
 
@@ -94,6 +131,8 @@ GridFlow 采用 **GNU Affero General Public License v3.0 (AGPLv3)** 开源协议
 
 完整协议文本见 [LICENSE](LICENSE) 文件。
 
+Copyright (C) 2025 Somnambulist-liu <liuzz_mang@163.com>
+
 ---
 
 ## 开发与构建
@@ -108,8 +147,10 @@ python main.py
 # 生成图标
 python generate_icon.py
 
-# 打包为单文件 EXE
-pyinstaller build.spec
+# 打包（按平台选择对应 spec）
+pyinstaller build_win.spec    # Windows
+pyinstaller build_macos.spec  # macOS
+pyinstaller build_linux.spec  # Linux
 ```
 
 **依赖项**：PySide6、openpyxl、pyinstaller（仅打包时需要）
