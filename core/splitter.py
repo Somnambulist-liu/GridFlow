@@ -121,19 +121,24 @@ class SplitWorker(QThread):
     # ── formula-preserving mode (slower, preserves =SUM etc.) ─────
 
     def _run_with_formulas(self):
-        """Split while preserving cell formulas. Opens source in normal mode."""
+        """Split while preserving cell formulas.
+
+        Opens source in normal mode, extracts cell values immediately
+        (including formula strings) before closing the source workbook.
+        """
         self.progress.emit(0, 1, "正在读取数据（保留公式）...")
         wb = openpyxl.load_workbook(self.file_path)
         ws = wb[self.sheet_name]
-        rows_iter = ws.iter_rows()
 
-        try:
-            header_cells = next(rows_iter)
-        except StopIteration:
+        # Read all rows at once, extracting values immediately
+        all_rows = list(ws.iter_rows())
+
+        if not all_rows:
             wb.close()
             self.finished.emit("表格为空")
             return
 
+        header_cells = all_rows[0]
         headers = [c.value for c in header_cells]
         headers_str = [str(h) if h is not None else f"Col{i}" for i, h in enumerate(headers)]
 
@@ -144,12 +149,15 @@ class SplitWorker(QThread):
 
         col_idx = headers_str.index(self.column)
 
+        # Extract values immediately — do NOT store Cell objects past wb.close()
         groups: Dict[str, list] = {}
-        for row_cells in rows_iter:
+        for row_cells in all_rows[1:]:
             key = row_cells[col_idx].value if col_idx < len(row_cells) else None
             key = "(空)" if key is None else str(key)
-            groups.setdefault(key, []).append(row_cells)
+            row_values = [c.value for c in row_cells]
+            groups.setdefault(key, []).append(row_values)
 
+        header_values = [c.value for c in header_cells]
         wb.close()
 
         if not groups:
@@ -160,9 +168,9 @@ class SplitWorker(QThread):
         total = len(groups)
 
         if self.mode == "files":
-            summary_parts = self._split_files_formulas(header_cells, groups, total)
+            summary_parts = self._split_files_formulas(header_values, groups, total)
         else:
-            summary_parts = self._split_sheets_formulas(header_cells, groups, total)
+            summary_parts = self._split_sheets_formulas(header_values, groups, total)
 
         unit = "文件" if self.mode == "files" else "Sheet"
         total_rows = sum(p[1] for p in summary_parts)
@@ -170,9 +178,9 @@ class SplitWorker(QThread):
         self.progress.emit(total, total, summary)
         self.finished.emit(summary)
 
-    def _split_files_formulas(self, header_cells, groups: Dict[str, list], total: int):
+    def _split_files_formulas(self, headers, groups, total):
         summary = []
-        for i, (value, cell_rows) in enumerate(groups.items()):
+        for i, (value, rows) in enumerate(groups.items()):
             if self._is_cancelled:
                 break
             safe_name = _safe_filename(str(value))
@@ -185,25 +193,25 @@ class SplitWorker(QThread):
 
             start_row = 1
             if self.keep_header:
-                self._copy_cell_row(out_ws, 1, header_cells)
+                self._write_row(out_ws, 1, headers)
                 start_row = 2
 
-            for r_idx, row_cells in enumerate(cell_rows, start_row):
-                self._copy_cell_row(out_ws, r_idx, row_cells)
+            for r_idx, row_values in enumerate(rows, start_row):
+                self._write_row(out_ws, r_idx, row_values)
 
             out_wb.save(filepath)
             out_wb.close()
 
-            summary.append((value, len(cell_rows)))
-            self.progress.emit(i + 1, total, f"正在生成：{safe_name} ({len(cell_rows)} 行)")
+            summary.append((value, len(rows)))
+            self.progress.emit(i + 1, total, f"正在生成：{safe_name} ({len(rows)} 行)")
         return summary
 
-    def _split_sheets_formulas(self, header_cells, groups: Dict[str, list], total: int):
+    def _split_sheets_formulas(self, headers, groups, total):
         summary = []
         out_wb = openpyxl.Workbook()
         out_wb.remove(out_wb.active)
 
-        for i, (value, cell_rows) in enumerate(groups.items()):
+        for i, (value, rows) in enumerate(groups.items()):
             if self._is_cancelled:
                 break
             safe_name = _safe_sheet_name(str(value))
@@ -211,25 +219,24 @@ class SplitWorker(QThread):
 
             start_row = 1
             if self.keep_header:
-                self._copy_cell_row(out_ws, 1, header_cells)
+                self._write_row(out_ws, 1, headers)
                 start_row = 2
 
-            for r_idx, row_cells in enumerate(cell_rows, start_row):
-                self._copy_cell_row(out_ws, r_idx, row_cells)
+            for r_idx, row_values in enumerate(rows, start_row):
+                self._write_row(out_ws, r_idx, row_values)
 
-            summary.append((value, len(cell_rows)))
-            self.progress.emit(i + 1, total, f"正在生成 Sheet：{safe_name} ({len(cell_rows)} 行)")
+            summary.append((value, len(rows)))
+            self.progress.emit(i + 1, total, f"正在生成 Sheet：{safe_name} ({len(rows)} 行)")
 
         out_wb.save(self.output_path)
         out_wb.close()
         return summary
 
     @staticmethod
-    def _copy_cell_row(ws, row_idx: int, cells):
-        """Copy a row of cells, preserving formulas and values."""
-        for col_idx, cell in enumerate(cells, 1):
-            target = ws.cell(row=row_idx, column=col_idx)
-            target.value = cell.value
+    def _write_row(ws, row_idx, values):
+        """Write a row of values, preserving formulas (strings starting with =)."""
+        for col_idx, val in enumerate(values, 1):
+            ws.cell(row=row_idx, column=col_idx, value=val)
 
 
 def _safe_filename(name: str) -> str:

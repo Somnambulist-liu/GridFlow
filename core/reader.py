@@ -43,7 +43,7 @@ def read_sheet_grouped(
     column: str,
 ) -> tuple:
     """流式读取并按列分组，返回 (headers, {value: [row_tuple, ...]})"""
-    wb = openpyxl.load_workbook(file_path, read_only=True)
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     ws = wb[sheet_name]
     row_iter = ws.iter_rows(values_only=True)
 
