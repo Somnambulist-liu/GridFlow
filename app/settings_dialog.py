@@ -1,12 +1,16 @@
-"""Settings dialog — language switching and general preferences."""
+"""Settings dialog — language, default output dir, auto-open."""
+import os
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QRadioButton, QPushButton, QButtonGroup, QFrame,
+    QLineEdit, QCheckBox, QFileDialog,
 )
 from PySide6.QtCore import Qt
 
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
+from app.settings import get_default_output_dir, set_default_output_dir
+from app.settings import get_auto_open_dir, set_auto_open_dir
 
 
 class SettingsDialog(QDialog):
@@ -16,7 +20,7 @@ class SettingsDialog(QDialog):
         self._lang = LangManager.instance()
 
         self.setWindowTitle(self._lang.tr("settings.title"))
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(420)
         self.setModal(True)
 
         self._setup_ui()
@@ -35,9 +39,8 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.title_label)
 
         # ── Language section ──
-        lang_label = QLabel(self._lang.tr("settings.language"))
-        lang_label.setStyleSheet("font-size: 10pt; font-weight: bold;")
-        layout.addWidget(lang_label)
+        self.lang_section = QLabel(self._lang.tr("settings.language"))
+        layout.addWidget(self.lang_section)
 
         self.lang_zh = QRadioButton(self._lang.tr("settings.language.zh"))
         self.lang_en = QRadioButton(self._lang.tr("settings.language.en"))
@@ -63,14 +66,26 @@ class SettingsDialog(QDialog):
         layout.addWidget(divider)
 
         # ── General section ──
-        general_label = QLabel(self._lang.tr("settings.general"))
-        general_label.setStyleSheet("font-size: 10pt; font-weight: bold;")
-        layout.addWidget(general_label)
+        self.general_section = QLabel(self._lang.tr("settings.general"))
+        layout.addWidget(self.general_section)
 
-        # Placeholder for future settings (output dir, etc.)
-        placeholder = QLabel("—")
-        placeholder.setStyleSheet("color: #94A3B8; font-size: 9pt;")
-        layout.addWidget(placeholder)
+        # Default output directory
+        dir_layout = QHBoxLayout()
+        dir_layout.setSpacing(8)
+        self.output_dir_input = QLineEdit()
+        self.output_dir_input.setPlaceholderText(self._lang.tr("settings.output_dir_placeholder"))
+        self.output_dir_input.setText(get_default_output_dir())
+        dir_layout.addWidget(self.output_dir_input, 1)
+
+        self.browse_btn = QPushButton(self._lang.tr("label.browse"))
+        self.browse_btn.clicked.connect(self._browse_output_dir)
+        dir_layout.addWidget(self.browse_btn)
+        layout.addLayout(dir_layout)
+
+        # Auto-open directory after processing
+        self.auto_open_check = QCheckBox(self._lang.tr("settings.auto_open_dir"))
+        self.auto_open_check.setChecked(get_auto_open_dir())
+        layout.addWidget(self.auto_open_check)
 
         layout.addStretch()
 
@@ -89,12 +104,24 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(btn_layout)
 
-        # Store refs for style refresh
-        self._section_labels = [lang_label, general_label]
+        # Ref lists for style/lang refresh
+        self._section_labels = [self.lang_section, self.general_section]
+        self._settings_labels = [self.auto_open_check]
+
+    def _browse_output_dir(self):
+        start = self.output_dir_input.text() or os.path.expanduser("~")
+        path = QFileDialog.getExistingDirectory(self, self._lang.tr("label.select_dir"), start)
+        if path:
+            self.output_dir_input.setText(path)
 
     def _on_save(self):
         new_lang = "zh" if self.lang_zh.isChecked() else "en"
         self._lang.set_lang(new_lang)
+
+        out_dir = self.output_dir_input.text().strip()
+        set_default_output_dir(out_dir)
+
+        set_auto_open_dir(self.auto_open_check.isChecked())
         self.accept()
 
     def _apply_styles(self):
@@ -137,6 +164,42 @@ class SettingsDialog(QDialog):
         self.lang_zh.setStyleSheet(radio_style)
         self.lang_en.setStyleSheet(radio_style)
 
+        input_style = f"""
+            QLineEdit {{
+                background-color: {c['BG_INPUT']};
+                border: 1px solid {c['BORDER']};
+                border-radius: {c['RADIUS_SM']}px;
+                padding: 6px 10px;
+                color: {c['TEXT_PRIMARY']};
+                font-size: 10pt;
+            }}
+            QLineEdit:focus {{
+                border-color: {c['PRIMARY']};
+            }}
+        """
+        self.output_dir_input.setStyleSheet(input_style)
+
+        self.auto_open_check.setStyleSheet(
+            f"QCheckBox {{ color: {c['TEXT_PRIMARY']}; font-size: 10pt; spacing: 8px; }} "
+            f"QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 3px; "
+            f"border: 2px solid {c['BORDER']}; }} "
+            f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; "
+            f"background-color: {c['PRIMARY']}; }}"
+        )
+
+        browse_style = f"""
+            QPushButton {{
+                color: {c['TEXT_SECONDARY']};
+                border: 1px solid {c['BORDER']};
+                border-radius: {c['RADIUS_SM']}px;
+                padding: 6px 12px;
+                font-size: 10pt;
+                background: transparent;
+            }}
+            QPushButton:hover {{ border-color: {c['PRIMARY']}; }}
+        """
+        self.browse_btn.setStyleSheet(browse_style)
+
         btn_base = f"""
             QPushButton {{
                 padding: 6px 20px;
@@ -161,7 +224,12 @@ class SettingsDialog(QDialog):
     def _on_lang_changed(self, _lang):
         self.setWindowTitle(self._lang.tr("settings.title"))
         self.title_label.setText(self._lang.tr("settings.title"))
+        self.lang_section.setText(self._lang.tr("settings.language"))
         self.lang_zh.setText(self._lang.tr("settings.language.zh"))
         self.lang_en.setText(self._lang.tr("settings.language.en"))
+        self.general_section.setText(self._lang.tr("settings.general"))
+        self.output_dir_input.setPlaceholderText(self._lang.tr("settings.output_dir_placeholder"))
+        self.browse_btn.setText(self._lang.tr("label.browse"))
+        self.auto_open_check.setText(self._lang.tr("settings.auto_open_dir"))
         self.cancel_btn.setText(self._lang.tr("btn.cancel"))
         self.save_btn.setText(self._lang.tr("btn.save"))

@@ -1,6 +1,7 @@
 """拆分功能模块"""
 import os
 from app.platform_utils import open_file_explorer
+from app.settings import get_default_output_dir, get_auto_open_dir
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QComboBox, QRadioButton, QLineEdit,
@@ -182,6 +183,8 @@ class SplitFeature(QWidget):
         config = self.step2.get_config()
         self.step3.show_result_stats(config["output_dir"])
         self.step3.on_finished(summary)
+        if get_auto_open_dir():
+            self.step3._open_output_dir()
 
     def _on_split_error(self, error_msg: str):
         self.step3.on_error(error_msg)
@@ -401,6 +404,9 @@ class _Step2Config(QWidget):
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
+        default_dir = get_default_output_dir()
+        if default_dir:
+            self.output_dir_input.setText(default_dir)
         out_row.addWidget(self.output_dir_input)
         self.out_btn = QPushButton()
         self.out_btn.setFixedWidth(60)

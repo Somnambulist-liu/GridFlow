@@ -55,6 +55,8 @@ ZH_CN = {
     "settings.language.en": "English",
     "settings.general": "通用",
     "settings.output_dir": "默认输出目录",
+    "settings.output_dir_placeholder": "选择默认输出目录...",
+    "settings.auto_open_dir": "处理完成后自动打开输出目录",
 
     # Pipeline
     "pipeline.badge": "流水线: {n} 个输出",
@@ -288,6 +290,8 @@ EN_US = {
     "settings.language.en": "English",
     "settings.general": "General",
     "settings.output_dir": "Default output directory",
+    "settings.output_dir_placeholder": "Choose default output directory...",
+    "settings.auto_open_dir": "Auto-open output directory after processing",
 
     "pipeline.badge": "Pipeline: {n} output(s)",
     "pipeline.clear": "Clear",

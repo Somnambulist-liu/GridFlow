@@ -1,6 +1,7 @@
 """去重功能模块"""
 import os
 from app.platform_utils import open_file_explorer
+from app.settings import get_default_output_dir, get_auto_open_dir
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QComboBox, QRadioButton, QLineEdit,
@@ -137,6 +138,9 @@ class DedupFeature(QWidget):
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
         self.output_dir_input = QLineEdit()
+        default_dir = get_default_output_dir()
+        if default_dir:
+            self.output_dir_input.setText(default_dir)
         out_row.addWidget(self.output_dir_input)
         self.out_browse_btn = QPushButton()
         self.out_browse_btn.setFixedWidth(60)
@@ -258,6 +262,8 @@ class DedupFeature(QWidget):
         self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
         self.open_dir_btn.setVisible(True)
+        if get_auto_open_dir():
+            self._open_output_dir()
 
     def _on_error(self, error_msg: str):
         self.start_btn.setEnabled(True)
