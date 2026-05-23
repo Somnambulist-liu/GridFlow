@@ -5,7 +5,7 @@ connects to the signal and calls _apply_lang() to refresh all visible text.
 """
 from PySide6.QtCore import QObject, Signal, QSettings
 
-APP_VERSION = "3.2"
+APP_VERSION = "3.2.0"
 
 # ── Chinese (default) ──────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ ZH_CN = {
     # App shell
     "app.title": "GridFlow",
     "app.subtitle": "表格数据流式处理，轻量、快速、离线可用",
-    "app.version": "v3.2",
+    "app.version": "v3.2.0",
     "btn.back": "← 首页",
     "btn.settings": "⚙ 设置",
     "btn.settings.tooltip": "设置",
@@ -253,7 +253,7 @@ ZH_CN = {
 EN_US = {
     "app.title": "GridFlow",
     "app.subtitle": "Streamlined Spreadsheet Processing — Lightweight, Fast, Offline",
-    "app.version": "v3.2",
+    "app.version": "v3.2.0",
     "btn.back": "← Home",
     "btn.settings": "⚙ Settings",
     "btn.settings.tooltip": "Settings",
