@@ -1,11 +1,8 @@
 """首页 — 功能卡片导航"""
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout, QScrollArea
 from PySide6.QtCore import Signal, Qt
 
-from app.theme import (
-    PRIMARY, PRIMARY_LIGHT, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
-    BORDER, BG_MAIN, BG_CARD, RADIUS_MD,
-)
+from app.theme_manager import ThemeManager
 
 FEATURES = [
     {
@@ -41,33 +38,46 @@ class FeatureCard(QFrame):
     def __init__(self, feature_id: str, icon: str, title: str, desc: str, parent=None):
         super().__init__(parent)
         self._id = feature_id
+        self._icon = icon
+        self._title = title
+        self._desc = desc
+        self._theme = ThemeManager.instance()
         self.setCursor(Qt.PointingHandCursor)
-        self.setStyleSheet(
-            f"FeatureCard {{ background: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: {RADIUS_MD}px; padding: 20px; }} "
-            f"FeatureCard:hover {{ border-color: {PRIMARY}; background: {PRIMARY_LIGHT}; }}"
-        )
+
+        self.icon_label = QLabel(icon)
+        self.icon_label.setStyleSheet("font-size: 32px;")
+        self.icon_label.setAlignment(Qt.AlignCenter)
+
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet("font-size: 12pt; font-weight: bold;")
+        self.title_label.setAlignment(Qt.AlignCenter)
+
+        self.desc_label = QLabel(desc)
+        self.desc_label.setStyleSheet("font-size: 9pt;")
+        self.desc_label.setAlignment(Qt.AlignCenter)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(8)
+        layout.addWidget(self.icon_label)
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.desc_label)
 
-        icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 32px;")
-        icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(icon_label)
+        self._apply_style()
+        self._theme.theme_changed.connect(self._on_theme_changed)
 
-        title_label = QLabel(title)
-        title_label.setStyleSheet(
-            f"font-size: 12pt; font-weight: bold; color: {TEXT_PRIMARY};"
+    def _apply_style(self):
+        c = self._theme.current_colors
+        self.setStyleSheet(
+            f"FeatureCard {{ background: {c['BG_CARD']}; border: 1px solid {c['BORDER']}; "
+            f"border-radius: {c['RADIUS_MD']}px; padding: 20px; }} "
+            f"FeatureCard:hover {{ border-color: {c['PRIMARY']}; background: {c['PRIMARY_LIGHT']}; }}"
         )
-        title_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title_label)
+        self.title_label.setStyleSheet(f"font-size: 12pt; font-weight: bold; color: {c['TEXT_PRIMARY']};")
+        self.desc_label.setStyleSheet(f"font-size: 9pt; color: {c['TEXT_SECONDARY']};")
 
-        desc_label = QLabel(desc)
-        desc_label.setStyleSheet(f"font-size: 9pt; color: {TEXT_SECONDARY};")
-        desc_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(desc_label)
+    def _on_theme_changed(self, _theme_name: str):
+        self._apply_style()
 
     def mousePressEvent(self, event):
         self.clicked.emit(self._id)
@@ -78,7 +88,9 @@ class HomePage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._theme = ThemeManager.instance()
         self._setup_ui()
+        self._theme.theme_changed.connect(self._on_theme_changed)
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -86,15 +98,13 @@ class HomePage(QWidget):
         layout.setSpacing(16)
 
         # 标题
-        title = QLabel("GridFlow")
-        title.setStyleSheet(f"font-size: 18pt; font-weight: bold; color: {TEXT_PRIMARY};")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
+        self.title = QLabel("GridFlow")
+        self.title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title)
 
-        subtitle = QLabel("表格数据流式处理，轻量、快速、离线可用")
-        subtitle.setStyleSheet(f"font-size: 10pt; color: {TEXT_MUTED};")
-        subtitle.setAlignment(Qt.AlignCenter)
-        layout.addWidget(subtitle)
+        self.subtitle = QLabel("表格数据流式处理，轻量、快速、离线可用")
+        self.subtitle.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.subtitle)
 
         layout.addSpacing(12)
 
@@ -102,6 +112,7 @@ class HomePage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(16)
 
+        self._cards = []
         for i, feat in enumerate(FEATURES):
             card = FeatureCard(feat["id"], feat["icon"], feat["title"], feat["desc"])
             card.clicked.connect(lambda fid=feat["id"]: self.feature_selected.emit(fid))
@@ -109,13 +120,23 @@ class HomePage(QWidget):
             grid.addWidget(card, row, col)
             grid.setRowStretch(row, 1)
             grid.setColumnStretch(col, 1)
+            self._cards.append(card)
 
         layout.addLayout(grid)
-
         layout.addStretch()
 
         # 版本
-        ver = QLabel("v2.0")
-        ver.setStyleSheet(f"font-size: 8pt; color: {TEXT_MUTED};")
-        ver.setAlignment(Qt.AlignCenter)
-        layout.addWidget(ver)
+        self.ver = QLabel("v3.0")
+        self.ver.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.ver)
+
+        self._apply_style()
+
+    def _apply_style(self):
+        c = self._theme.current_colors
+        self.title.setStyleSheet(f"font-size: 18pt; font-weight: bold; color: {c['TEXT_PRIMARY']};")
+        self.subtitle.setStyleSheet(f"font-size: 10pt; color: {c['TEXT_MUTED']};")
+        self.ver.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")
+
+    def _on_theme_changed(self, _theme_name: str):
+        self._apply_style()

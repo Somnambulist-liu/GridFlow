@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget, QVBoxLayout
 from PySide6.QtCore import Signal, Qt
-from app.theme import PRIMARY, PRIMARY_HOVER, SUCCESS, TEXT_MUTED, BG_CARD, BORDER
+from app.theme_manager import ThemeManager
 
 
 class StepIndicator(QFrame):
@@ -12,7 +12,9 @@ class StepIndicator(QFrame):
         super().__init__(parent)
         self.setFixedHeight(72)
         self._current = 0
+        self._theme = ThemeManager.instance()
         self._setup_ui()
+        self._theme.theme_changed.connect(self._on_theme_changed)
 
     def _setup_ui(self):
         layout = QHBoxLayout(self)
@@ -21,18 +23,23 @@ class StepIndicator(QFrame):
         layout.setAlignment(Qt.AlignCenter)
 
         self._step_widgets = []
+        self._circle_labels = []
+        self._line_frames = []
+
         for i, name in enumerate(self.STEPS):
             if i > 0:
                 line = QFrame()
                 line.setFixedSize(60, 2)
                 line.setObjectName(f"stepLine{i}")
-                line.setStyleSheet(f"background-color: {TEXT_MUTED}; border-radius: 1px;")
                 layout.addWidget(line)
                 self._step_widgets.append(("line", line))
+                self._line_frames.append(line)
 
             step_widget = self._make_step(i + 1, name)
             layout.addWidget(step_widget)
             self._step_widgets.append(("step", step_widget))
+
+        self._apply_theme()
 
     def _make_step(self, num: int, name: str) -> QWidget:
         widget = QWidget()
@@ -42,20 +49,14 @@ class StepIndicator(QFrame):
         vbox.setSpacing(4)
         vbox.setAlignment(Qt.AlignCenter)
 
-        self.circle_labels = getattr(self, '_circle_labels', [])
         circle = QLabel(str(num))
         circle.setFixedSize(32, 32)
         circle.setAlignment(Qt.AlignCenter)
-        circle.setStyleSheet(
-            f"background-color: {TEXT_MUTED}; color: white; border-radius: 16px; "
-            "font-size: 13pt; font-weight: bold;"
-        )
         circle.setObjectName(f"circle{num}")
         vbox.addWidget(circle, alignment=Qt.AlignCenter)
 
         label = QLabel(name)
         label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 9pt;")
         label.setObjectName(f"label{num}")
         vbox.addWidget(label, alignment=Qt.AlignCenter)
 
@@ -63,26 +64,42 @@ class StepIndicator(QFrame):
         widget.label = label
         return widget
 
-    def set_current(self, index: int):
-        self._current = index
+    def _apply_theme(self):
+        c = self._theme.current_colors
         for item_type, widget in self._step_widgets:
             if item_type == "step":
-                step_num = int(widget.circle.objectName().replace("circle", ""))
-                if step_num <= index + 1:
-                    widget.circle.setStyleSheet(
-                        f"background-color: {SUCCESS}; color: white; border-radius: 16px; "
-                        "font-size: 13pt; font-weight: bold;")
-                    widget.label.setStyleSheet(f"color: {SUCCESS}; font-size: 9pt; font-weight: bold;")
-                if step_num == index + 1:
-                    widget.circle.setStyleSheet(
-                        f"background-color: {PRIMARY}; color: white; border-radius: 16px; "
-                        "font-size: 14pt; font-weight: bold;")
-                    widget.label.setStyleSheet(f"color: {PRIMARY}; font-size: 9pt; font-weight: bold;")
+                self._refresh_step_widget(widget, c)
+            elif item_type == "line":
+                self._refresh_line(widget, c)
 
-        for item_type, widget in self._step_widgets:
-            if item_type == "line":
-                line_num = int(widget.objectName().replace("stepLine", ""))
-                if line_num <= index:
-                    widget.setStyleSheet(f"background-color: {SUCCESS}; border-radius: 1px;")
-                else:
-                    widget.setStyleSheet(f"background-color: {TEXT_MUTED}; border-radius: 1px;")
+    def _refresh_step_widget(self, widget, c):
+        step_num = int(widget.circle.objectName().replace("circle", ""))
+        if step_num < self._current + 1:
+            widget.circle.setStyleSheet(
+                f"background-color: {c['SUCCESS']}; color: white; border-radius: 16px; "
+                "font-size: 13pt; font-weight: bold;")
+            widget.label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 9pt; font-weight: bold;")
+        elif step_num == self._current + 1:
+            widget.circle.setStyleSheet(
+                f"background-color: {c['PRIMARY']}; color: white; border-radius: 16px; "
+                "font-size: 14pt; font-weight: bold;")
+            widget.label.setStyleSheet(f"color: {c['PRIMARY']}; font-size: 9pt; font-weight: bold;")
+        else:
+            widget.circle.setStyleSheet(
+                f"background-color: {c['TEXT_MUTED']}; color: white; border-radius: 16px; "
+                "font-size: 13pt; font-weight: bold;")
+            widget.label.setStyleSheet(f"color: {c['TEXT_MUTED']}; font-size: 9pt;")
+
+    def _refresh_line(self, widget, c):
+        line_num = int(widget.objectName().replace("stepLine", ""))
+        if line_num <= self._current:
+            widget.setStyleSheet(f"background-color: {c['SUCCESS']}; border-radius: 1px;")
+        else:
+            widget.setStyleSheet(f"background-color: {c['TEXT_MUTED']}; border-radius: 1px;")
+
+    def set_current(self, index: int):
+        self._current = index
+        self._apply_theme()
+
+    def _on_theme_changed(self, _theme_name: str):
+        self._apply_theme()
