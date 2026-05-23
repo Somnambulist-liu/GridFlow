@@ -1,5 +1,6 @@
 """拆分功能模块"""
 import os
+from app.platform_utils import open_file_explorer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QComboBox, QRadioButton, QLineEdit,
@@ -696,4 +697,4 @@ class _Step3Execute(QWidget):
 
     def _open_output_dir(self):
         if self._output_dir and os.path.exists(self._output_dir):
-            os.startfile(self._output_dir)
+            open_file_explorer(self._output_dir)

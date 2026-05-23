@@ -19,7 +19,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("GridFlow")
         base = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
-        icon_path = os.path.join(base, "resources", "icon.ico")
+        icon_ext = "ico" if sys.platform == "win32" else "png"
+        icon_path = os.path.join(base, "resources", f"icon.{icon_ext}")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         self.setMinimumSize(680, 580)
