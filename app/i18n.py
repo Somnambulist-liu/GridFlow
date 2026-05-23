@@ -30,6 +30,9 @@ ZH_CN = {
     "home.group.data": "数据处理",
     "home.group.analysis": "数据分析",
 
+    # Home page — warning
+    "home.warning": "⚠️ 注意事项：除了表格拆分功能，其他功能目前还有小BUG存在，请谨慎使用！",
+
     # Home page — cards
     "card.split": "表格拆分",
     "card.split.desc": "按指定字段拆分为独立文件或多个 Sheet",
@@ -267,6 +270,7 @@ EN_US = {
 
     "home.group.data": "Data Processing",
     "home.group.analysis": "Data Analysis",
+    "home.warning": "⚠️ Note: Except for Table Split, other features may have minor bugs. Please use with caution!",
 
     "card.split": "Table Split",
     "card.split.desc": "Split by fields into separate files or sheets",
