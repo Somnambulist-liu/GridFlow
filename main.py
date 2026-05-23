@@ -10,6 +10,7 @@ from app.features.convert import ConvertFeature
 from app.features.filter import FilterFeature
 from app.features.columns import ColumnsFeature
 from app.features.pivot import PivotFeature
+from app.features.validate import ValidateFeature
 
 
 def main():
@@ -31,6 +32,7 @@ def main():
     window.register_feature("filter", FilterFeature())
     window.register_feature("columns", ColumnsFeature())
     window.register_feature("pivot", PivotFeature())
+    window.register_feature("validate", ValidateFeature())
     window.show()
 
     sys.exit(app.exec())
