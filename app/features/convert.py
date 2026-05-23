@@ -8,10 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from core.converter import ConvertWorker
-from app.theme import (
-    PRIMARY, PRIMARY_HOVER, SUCCESS, TEXT_PRIMARY, TEXT_SECONDARY,
-    TEXT_MUTED, BORDER, BG_CARD, RADIUS_SM,
-)
+from app.theme_manager import ThemeManager
 from app.widgets.common import section_label
 
 
@@ -23,7 +20,35 @@ class ConvertFeature(QWidget):
         self._worker: ConvertWorker | None = None
         self._file_paths = []
         self._output_dir = ""
+        self._theme = ThemeManager.instance()
         self._setup_ui()
+        self._apply_styles()
+        self._theme.theme_changed.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme_name: str):
+        self._apply_styles()
+
+    def _apply_styles(self):
+        c = self._theme.current_colors
+        self.file_list.setStyleSheet(f"QListWidget {{ border: 1px solid {c['BORDER']}; border-radius: 4px; color: {c['TEXT_PRIMARY']}; background-color: {c['BG_CARD']}; }}")
+        self.start_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['PRIMARY']}; color: white; border: none; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 10px 40px; font-size: 12pt; font-weight: bold; }} "
+            f"QPushButton:hover {{ background-color: {c['PRIMARY_HOVER']}; }} "
+            f"QPushButton:disabled {{ background-color: {c['TEXT_MUTED']}; }}"
+        )
+        self.status_label.setStyleSheet(f"color: {c['TEXT_SECONDARY']}; font-size: 10pt;")
+        self.open_dir_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['SUCCESS']}; color: white; border: none; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
+            f"QPushButton:hover {{ background-color: #15803D; }}"
+        )
+        self.add_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['BG_CARD']}; border: 1px solid {c['BORDER']}; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 5px 14px; color: {c['TEXT_PRIMARY']}; }} "
+            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; color: {c['PRIMARY']}; }}"
+        )
+        self.clear_btn.setStyleSheet(self.add_btn.styleSheet())
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -45,11 +70,9 @@ class ConvertFeature(QWidget):
         layout.addWidget(section_label("选择文件（可多选）"))
         btn_row = QHBoxLayout()
         self.add_btn = QPushButton("添加文件")
-        self.add_btn.setStyleSheet(self._btn_style())
         self.add_btn.clicked.connect(self._add_files)
         btn_row.addWidget(self.add_btn)
         self.clear_btn = QPushButton("清空")
-        self.clear_btn.setStyleSheet(self._btn_style())
         self.clear_btn.clicked.connect(self._clear_files)
         btn_row.addWidget(self.clear_btn)
         btn_row.addStretch()
@@ -57,7 +80,6 @@ class ConvertFeature(QWidget):
 
         self.file_list = QListWidget()
         self.file_list.setMaximumHeight(100)
-        self.file_list.setStyleSheet(f"QListWidget {{ border: 1px solid {BORDER}; border-radius: 4px; }}")
         layout.addWidget(self.file_list)
 
         # ── 输出目录 ──
@@ -80,12 +102,6 @@ class ConvertFeature(QWidget):
         btn_row2.addStretch()
         self.start_btn = QPushButton("▶  开始转换")
         self.start_btn.setFixedHeight(44)
-        self.start_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {PRIMARY}; color: white; border: none; "
-            f"border-radius: {RADIUS_SM}px; padding: 10px 40px; font-size: 12pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: {PRIMARY_HOVER}; }} "
-            f"QPushButton:disabled {{ background-color: {TEXT_MUTED}; }}"
-        )
         self.start_btn.clicked.connect(self._start_convert)
         btn_row2.addWidget(self.start_btn)
         btn_row2.addStretch()
@@ -100,30 +116,16 @@ class ConvertFeature(QWidget):
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 10pt;")
         layout.addWidget(self.status_label)
 
         open_row = QHBoxLayout()
         open_row.addStretch()
         self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
-        self.open_dir_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {SUCCESS}; color: white; border: none; "
-            f"border-radius: {RADIUS_SM}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: #15803D; }}"
-        )
         self.open_dir_btn.setVisible(False)
         self.open_dir_btn.clicked.connect(self._open_output_dir)
         open_row.addWidget(self.open_dir_btn)
         open_row.addStretch()
         layout.addLayout(open_row)
-
-    @staticmethod
-    def _btn_style() -> str:
-        return (
-            f"QPushButton {{ background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: {RADIUS_SM}px; padding: 5px 14px; color: {TEXT_PRIMARY}; }} "
-            f"QPushButton:hover {{ border-color: {PRIMARY}; color: {PRIMARY}; }}"
-        )
 
     def _add_files(self):
         is_csv = self.fmt_csv_to_xlsx.isChecked()
@@ -173,10 +175,11 @@ class ConvertFeature(QWidget):
         self.status_label.setText(message)
 
     def _on_finished(self, summary: str):
+        c = self._theme.current_colors
         self.start_btn.setEnabled(True)
         self.start_btn.setText("▶  开始转换")
         self.status_label.setText(summary)
-        self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 10pt; font-weight: bold;")
+        self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
         self.open_dir_btn.setVisible(True)
 

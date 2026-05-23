@@ -10,11 +10,8 @@ from PySide6.QtCore import Signal, Qt
 
 from core.reader import get_sheet_names
 from core.merger import MergeWorker
-from app.theme import (
-    PRIMARY, PRIMARY_HOVER, SUCCESS, TEXT_PRIMARY, TEXT_SECONDARY,
-    TEXT_MUTED, BORDER, BG_CARD, BG_INPUT, RADIUS_SM,
-)
-from app.widgets.common import COMBO_STYLE, section_label
+from app.theme_manager import ThemeManager
+from app.widgets.common import section_label
 
 
 class MergeFeature(QWidget):
@@ -26,7 +23,43 @@ class MergeFeature(QWidget):
         self._file_paths = []
         self._file_path = ""
         self._output_dir = ""
+        self._theme = ThemeManager.instance()
         self._setup_ui()
+        self._apply_styles()
+        self._theme.theme_changed.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme_name: str):
+        self._apply_styles()
+
+    def _apply_styles(self):
+        c = self._theme.current_colors
+        self.file_list.setStyleSheet(f"QListWidget {{ border: 1px solid {c['BORDER']}; border-radius: 4px; color: {c['TEXT_PRIMARY']}; background-color: {c['BG_CARD']}; }}")
+        self.sheet_list.setStyleSheet(f"QListWidget {{ border: 1px solid {c['BORDER']}; border-radius: 4px; color: {c['TEXT_PRIMARY']}; background-color: {c['BG_CARD']}; }}")
+        self.sheet_file_label.setStyleSheet(f"color: {c['TEXT_MUTED']};")
+        self.start_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['PRIMARY']}; color: white; border: none; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 10px 40px; font-size: 12pt; font-weight: bold; }} "
+            f"QPushButton:hover {{ background-color: {c['PRIMARY_HOVER']}; }} "
+            f"QPushButton:disabled {{ background-color: {c['TEXT_MUTED']}; }}"
+        )
+        self.status_label.setStyleSheet(f"color: {c['TEXT_SECONDARY']}; font-size: 10pt;")
+        self.open_dir_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['SUCCESS']}; color: white; border: none; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
+            f"QPushButton:hover {{ background-color: #15803D; }}"
+        )
+        btn_style = self._btn_style()
+        self.add_files_btn.setStyleSheet(btn_style)
+        self.clear_files_btn.setStyleSheet(btn_style)
+        self.sheet_file_btn.setStyleSheet(btn_style)
+
+    def _btn_style(self) -> str:
+        c = self._theme.current_colors
+        return (
+            f"QPushButton {{ background-color: {c['BG_CARD']}; border: 1px solid {c['BORDER']}; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 5px 14px; color: {c['TEXT_PRIMARY']}; }} "
+            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; color: {c['PRIMARY']}; }}"
+        )
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -53,18 +86,15 @@ class MergeFeature(QWidget):
         files_layout.addWidget(section_label("选择文件（可多选）"))
         btn_row = QHBoxLayout()
         self.add_files_btn = QPushButton("添加文件")
-        self.add_files_btn.setStyleSheet(self._btn_style())
         self.add_files_btn.clicked.connect(self._add_files)
         btn_row.addWidget(self.add_files_btn)
         self.clear_files_btn = QPushButton("清空")
-        self.clear_files_btn.setStyleSheet(self._btn_style())
         self.clear_files_btn.clicked.connect(self._clear_files)
         btn_row.addWidget(self.clear_files_btn)
         btn_row.addStretch()
         files_layout.addLayout(btn_row)
         self.file_list = QListWidget()
         self.file_list.setMaximumHeight(100)
-        self.file_list.setStyleSheet(f"QListWidget {{ border: 1px solid {BORDER}; border-radius: 4px; }}")
         files_layout.addWidget(self.file_list)
         layout.addWidget(self.files_area)
 
@@ -76,11 +106,9 @@ class MergeFeature(QWidget):
         sheets_layout.addWidget(section_label("选择文件"))
         sf_row = QHBoxLayout()
         self.sheet_file_btn = QPushButton("选择文件")
-        self.sheet_file_btn.setStyleSheet(self._btn_style())
         self.sheet_file_btn.clicked.connect(self._select_file_for_sheets)
         sf_row.addWidget(self.sheet_file_btn)
         self.sheet_file_label = QLabel("未选择文件")
-        self.sheet_file_label.setStyleSheet(f"color: {TEXT_MUTED};")
         sf_row.addWidget(self.sheet_file_label)
         sf_row.addStretch()
         sheets_layout.addLayout(sf_row)
@@ -120,12 +148,6 @@ class MergeFeature(QWidget):
         btn_row2.addStretch()
         self.start_btn = QPushButton("▶  开始合并")
         self.start_btn.setFixedHeight(44)
-        self.start_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {PRIMARY}; color: white; border: none; "
-            f"border-radius: {RADIUS_SM}px; padding: 10px 40px; font-size: 12pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: {PRIMARY_HOVER}; }} "
-            f"QPushButton:disabled {{ background-color: {TEXT_MUTED}; }}"
-        )
         self.start_btn.clicked.connect(self._start_merge)
         btn_row2.addWidget(self.start_btn)
         btn_row2.addStretch()
@@ -140,31 +162,17 @@ class MergeFeature(QWidget):
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 10pt;")
         layout.addWidget(self.status_label)
 
         # ── 打开目录 ──
         open_row = QHBoxLayout()
         open_row.addStretch()
         self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
-        self.open_dir_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {SUCCESS}; color: white; border: none; "
-            f"border-radius: {RADIUS_SM}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: #15803D; }}"
-        )
         self.open_dir_btn.setVisible(False)
         self.open_dir_btn.clicked.connect(self._open_output_dir)
         open_row.addWidget(self.open_dir_btn)
         open_row.addStretch()
         layout.addLayout(open_row)
-
-    @staticmethod
-    def _btn_style() -> str:
-        return (
-            f"QPushButton {{ background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: {RADIUS_SM}px; padding: 5px 14px; color: {TEXT_PRIMARY}; }} "
-            f"QPushButton:hover {{ border-color: {PRIMARY}; color: {PRIMARY}; }}"
-        )
 
     def _on_mode_changed(self):
         is_files = self.mode_files.isChecked()
@@ -247,10 +255,11 @@ class MergeFeature(QWidget):
         self.status_label.setText(message)
 
     def _on_finished(self, summary: str):
+        c = self._theme.current_colors
         self.start_btn.setEnabled(True)
         self.start_btn.setText("▶  开始合并")
         self.status_label.setText(summary)
-        self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 10pt; font-weight: bold;")
+        self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
         self.open_dir_btn.setVisible(True)
 

@@ -10,11 +10,8 @@ from PySide6.QtCore import Signal, Qt
 
 from core.reader import get_sheet_names, get_columns
 from core.deduper import DedupWorker
-from app.theme import (
-    PRIMARY, PRIMARY_HOVER, SUCCESS, TEXT_PRIMARY, TEXT_SECONDARY,
-    TEXT_MUTED, BORDER, BG_CARD, RADIUS_SM,
-)
-from app.widgets.common import COMBO_STYLE, section_label
+from app.theme_manager import ThemeManager
+from app.widgets.common import get_combo_style, section_label
 
 
 class DedupFeature(QWidget):
@@ -25,7 +22,40 @@ class DedupFeature(QWidget):
         self._worker: DedupWorker | None = None
         self._file_path = ""
         self._output_dir = ""
+        self._theme = ThemeManager.instance()
         self._setup_ui()
+        self._apply_styles()
+        self._theme.theme_changed.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme_name: str):
+        self._apply_styles()
+
+    def _apply_styles(self):
+        c = self._theme.current_colors
+        self.file_label.setStyleSheet(f"color: {c['TEXT_MUTED']};")
+        self.file_btn.setStyleSheet(self._btn_style())
+        self.sheet_combo.setStyleSheet(get_combo_style(c))
+        self.column_list.setStyleSheet(f"QListWidget {{ border: 1px solid {c['BORDER']}; border-radius: 4px; color: {c['TEXT_PRIMARY']}; background-color: {c['BG_CARD']}; }}")
+        self.start_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['PRIMARY']}; color: white; border: none; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 10px 40px; font-size: 12pt; font-weight: bold; }} "
+            f"QPushButton:hover {{ background-color: {c['PRIMARY_HOVER']}; }} "
+            f"QPushButton:disabled {{ background-color: {c['TEXT_MUTED']}; }}"
+        )
+        self.status_label.setStyleSheet(f"color: {c['TEXT_SECONDARY']}; font-size: 10pt;")
+        self.open_dir_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {c['SUCCESS']}; color: white; border: none; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
+            f"QPushButton:hover {{ background-color: #15803D; }}"
+        )
+
+    def _btn_style(self) -> str:
+        c = self._theme.current_colors
+        return (
+            f"QPushButton {{ background-color: {c['BG_CARD']}; border: 1px solid {c['BORDER']}; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 5px 14px; color: {c['TEXT_PRIMARY']}; }} "
+            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; color: {c['PRIMARY']}; }}"
+        )
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -36,11 +66,9 @@ class DedupFeature(QWidget):
         layout.addWidget(section_label("选择文件"))
         file_row = QHBoxLayout()
         self.file_btn = QPushButton("选择文件")
-        self.file_btn.setStyleSheet(self._btn_style())
         self.file_btn.clicked.connect(self._select_file)
         file_row.addWidget(self.file_btn)
         self.file_label = QLabel("未选择文件")
-        self.file_label.setStyleSheet(f"color: {TEXT_MUTED};")
         file_row.addWidget(self.file_label)
         file_row.addStretch()
         layout.addLayout(file_row)
@@ -52,7 +80,6 @@ class DedupFeature(QWidget):
         g1.setSpacing(4)
         g1.addWidget(section_label("选择 Sheet"))
         self.sheet_combo = QComboBox()
-        self.sheet_combo.setStyleSheet(COMBO_STYLE)
         self.sheet_combo.currentTextChanged.connect(self._on_sheet_changed)
         g1.addWidget(self.sheet_combo)
         row1.addLayout(g1)
@@ -62,7 +89,6 @@ class DedupFeature(QWidget):
         self.column_list = QListWidget()
         self.column_list.setSelectionMode(QAbstractItemView.MultiSelection)
         self.column_list.setMaximumHeight(100)
-        self.column_list.setStyleSheet(f"QListWidget {{ border: 1px solid {BORDER}; border-radius: 4px; }}")
         layout.addWidget(self.column_list)
 
         # ── 保留选项 ──
@@ -96,12 +122,6 @@ class DedupFeature(QWidget):
         btn_row.addStretch()
         self.start_btn = QPushButton("▶  开始去重")
         self.start_btn.setFixedHeight(44)
-        self.start_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {PRIMARY}; color: white; border: none; "
-            f"border-radius: {RADIUS_SM}px; padding: 10px 40px; font-size: 12pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: {PRIMARY_HOVER}; }} "
-            f"QPushButton:disabled {{ background-color: {TEXT_MUTED}; }}"
-        )
         self.start_btn.clicked.connect(self._start_dedup)
         btn_row.addWidget(self.start_btn)
         btn_row.addStretch()
@@ -116,30 +136,16 @@ class DedupFeature(QWidget):
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 10pt;")
         layout.addWidget(self.status_label)
 
         open_row = QHBoxLayout()
         open_row.addStretch()
         self.open_dir_btn = QPushButton("\U0001F4C2 打开输出目录")
-        self.open_dir_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {SUCCESS}; color: white; border: none; "
-            f"border-radius: {RADIUS_SM}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: #15803D; }}"
-        )
         self.open_dir_btn.setVisible(False)
         self.open_dir_btn.clicked.connect(self._open_output_dir)
         open_row.addWidget(self.open_dir_btn)
         open_row.addStretch()
         layout.addLayout(open_row)
-
-    @staticmethod
-    def _btn_style() -> str:
-        return (
-            f"QPushButton {{ background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: {RADIUS_SM}px; padding: 5px 14px; color: {TEXT_PRIMARY}; }} "
-            f"QPushButton:hover {{ border-color: {PRIMARY}; color: {PRIMARY}; }}"
-        )
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -209,10 +215,11 @@ class DedupFeature(QWidget):
         self.status_label.setText(message)
 
     def _on_finished(self, summary: str):
+        c = self._theme.current_colors
         self.start_btn.setEnabled(True)
         self.start_btn.setText("▶  开始去重")
         self.status_label.setText(summary)
-        self.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 10pt; font-weight: bold;")
+        self.status_label.setStyleSheet(f"color: {c['SUCCESS']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
         self.open_dir_btn.setVisible(True)
 
