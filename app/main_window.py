@@ -54,11 +54,11 @@ class MainWindow(QMainWindow):
             f"padding: 4px 16px; font-size: 10pt; font-weight: bold; }} "
             f"QPushButton:hover {{ background-color: {c['PRIMARY']}; color: white; }}"
         )
-        labels = {"light": "🌙", "dark": "☀️", "auto": "🖥️"}
-        self.theme_btn.setText(labels.get(self._theme.theme, "🌙"))
+        labels = {"light": "🌙  浅色", "dark": "☀️  深色", "auto": "🖥️  自动"}
+        self.theme_btn.setText(labels.get(self._theme.theme, "🌙  浅色"))
         self.theme_btn.setStyleSheet(
             f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
-            f"border-radius: {c['RADIUS_SM']}px; padding: 4px 12px; font-size: 14px; }} "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 4px 14px; font-size: 10pt; }} "
             f"QPushButton:hover {{ border-color: {c['PRIMARY']}; }}"
         )
 
