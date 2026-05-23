@@ -138,16 +138,22 @@ class HomePage(QWidget):
         scroll.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
         layout.addWidget(scroll, 1)
 
+        self.ver = QLabel()
+        self.ver.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.ver)
+
         self._apply_style()
 
     def _apply_lang(self):
         for lbl, key in self._section_labels:
             lbl.setText(self._lang.tr(key))
+        self.ver.setText(self._lang.tr("app.version"))
 
     def _apply_style(self):
         c = self._theme.current_colors
         for lbl, _ in self._section_labels:
             lbl.setStyleSheet(f"font-size: 10pt; font-weight: bold; color: {c['PRIMARY']}; padding: 2px 0;")
+        self.ver.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']}; margin-top: 4px;")
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_style()
