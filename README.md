@@ -80,10 +80,12 @@ sheet2split/
 ├── main.py                  # 入口
 ├── app/
 │   ├── main_window.py       # 根容器：首页 + 功能路由
-│   ├── home_page.py         # 功能卡片首页（2×4 网格）
+│   ├── home_page.py         # 功能卡片首页（分组 2×4 网格）
 │   ├── theme.py             # 浅色/深色双配色方案
-│   ├── theme_manager.py     # 动态主题管理器（单例）
+│   ├── theme_manager.py     # 动态主题管理器（单例，检测系统主题）
+│   ├── i18n.py              # 国际化：202 键中英双字典 + LangManager 单例
 │   ├── styles.py            # QSS 全局样式（动态配色）
+│   ├── settings_dialog.py   # 设置对话框（语言切换）
 │   ├── step_indicator.py    # 步骤指示器（拆分功能）
 │   ├── settings.py          # QSettings 持久化
 │   ├── pipeline.py          # 功能流水线（共享输出）
@@ -112,7 +114,9 @@ sheet2split/
     └── validator.py         # 校验 Worker
 ```
 
-- **GUI**：PySide6（Qt for Python），QSS 主题定制，支持浅色/深色模式一键切换
+- **GUI**：PySide6（Qt for Python），QSS 主题定制，支持浅色/深色模式一键切换，中英双语界面
+- **i18n**：LangManager 单例驱动运行时语言切换，202 个翻译键值覆盖全部 UI 文本
+- **设置**：齿轮按钮 → 设置对话框，支持语言切换（中文/English），后续可扩展更多选项
 - **数据处理**：openpyxl（read_only 流式读取 + Workbook 写入），无需 pandas
 - **并发模型**：QThread Worker，progress / finished / error 信号驱动 UI 更新
 - **打包**：PyInstaller，支持 Windows (.exe) / macOS (.app) / Linux，排除 30+ 未使用的 Qt 模块
