@@ -1,6 +1,8 @@
 import os
 from typing import Dict
 import openpyxl
+from openpyxl.formula.translate import Translator
+from openpyxl.utils import get_column_letter
 from PySide6.QtCore import QThread, Signal
 
 from core.reader import read_sheet_grouped
@@ -149,13 +151,17 @@ class SplitWorker(QThread):
 
         col_idx = headers_str.index(self.column)
 
+        # Pre-compute column letters for formula coordinate translation
+        col_letters = [get_column_letter(i) for i in range(1, len(header_cells) + 1)]
+
         # Extract values immediately — do NOT store Cell objects past wb.close()
+        # Store (src_row, row_values) so formulas can be translated to output row
         groups: Dict[str, list] = {}
-        for row_cells in all_rows[1:]:
+        for src_row, row_cells in enumerate(all_rows[1:], start=2):
             key = row_cells[col_idx].value if col_idx < len(row_cells) else None
             key = "(空)" if key is None else str(key)
             row_values = [c.value for c in row_cells]
-            groups.setdefault(key, []).append(row_values)
+            groups.setdefault(key, []).append((src_row, row_values))
 
         header_values = [c.value for c in header_cells]
         wb.close()
@@ -168,9 +174,9 @@ class SplitWorker(QThread):
         total = len(groups)
 
         if self.mode == "files":
-            summary_parts = self._split_files_formulas(header_values, groups, total)
+            summary_parts = self._split_files_formulas(header_values, col_letters, groups, total)
         else:
-            summary_parts = self._split_sheets_formulas(header_values, groups, total)
+            summary_parts = self._split_sheets_formulas(header_values, col_letters, groups, total)
 
         unit = "文件" if self.mode == "files" else "Sheet"
         total_rows = sum(p[1] for p in summary_parts)
@@ -178,7 +184,7 @@ class SplitWorker(QThread):
         self.progress.emit(total, total, summary)
         self.finished.emit(summary)
 
-    def _split_files_formulas(self, headers, groups, total):
+    def _split_files_formulas(self, headers, col_letters, groups, total):
         summary = []
         for i, (value, rows) in enumerate(groups.items()):
             if self._is_cancelled:
@@ -193,11 +199,11 @@ class SplitWorker(QThread):
 
             start_row = 1
             if self.keep_header:
-                self._write_row(out_ws, 1, headers)
+                self._write_row(out_ws, 1, headers, col_letters)
                 start_row = 2
 
-            for r_idx, row_values in enumerate(rows, start_row):
-                self._write_row(out_ws, r_idx, row_values)
+            for r_idx, (src_row, row_values) in enumerate(rows, start_row):
+                self._write_row(out_ws, r_idx, row_values, col_letters, src_row)
 
             out_wb.save(filepath)
             out_wb.close()
@@ -206,7 +212,7 @@ class SplitWorker(QThread):
             self.progress.emit(i + 1, total, f"正在生成：{safe_name} ({len(rows)} 行)")
         return summary
 
-    def _split_sheets_formulas(self, headers, groups, total):
+    def _split_sheets_formulas(self, headers, col_letters, groups, total):
         summary = []
         out_wb = openpyxl.Workbook()
         out_wb.remove(out_wb.active)
@@ -219,11 +225,11 @@ class SplitWorker(QThread):
 
             start_row = 1
             if self.keep_header:
-                self._write_row(out_ws, 1, headers)
+                self._write_row(out_ws, 1, headers, col_letters)
                 start_row = 2
 
-            for r_idx, row_values in enumerate(rows, start_row):
-                self._write_row(out_ws, r_idx, row_values)
+            for r_idx, (src_row, row_values) in enumerate(rows, start_row):
+                self._write_row(out_ws, r_idx, row_values, col_letters, src_row)
 
             summary.append((value, len(rows)))
             self.progress.emit(i + 1, total, f"正在生成 Sheet：{safe_name} ({len(rows)} 行)")
@@ -233,9 +239,16 @@ class SplitWorker(QThread):
         return summary
 
     @staticmethod
-    def _write_row(ws, row_idx, values):
-        """Write a row of values, preserving formulas (strings starting with =)."""
+    def _write_row(ws, row_idx, values, col_letters=None, src_row=None):
+        """Write a row of values, translating formula references from source to target position."""
         for col_idx, val in enumerate(values, 1):
+            if col_letters and src_row and isinstance(val, str) and val.startswith("="):
+                src_cell = f"{col_letters[col_idx - 1]}{src_row}"
+                tgt_cell = f"{get_column_letter(col_idx)}{row_idx}"
+                try:
+                    val = Translator(val, origin=src_cell).translate_formula(tgt_cell)
+                except Exception:
+                    pass  # formula references out of range — keep original
             ws.cell(row=row_idx, column=col_idx, value=val)
 
 
