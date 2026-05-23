@@ -5,7 +5,7 @@ connects to the signal and calls _apply_lang() to refresh all visible text.
 """
 from PySide6.QtCore import QObject, Signal, QSettings
 
-APP_VERSION = "3.2.1"
+APP_VERSION = "3.2.2"
 
 # ── Chinese (default) ──────────────────────────────────────────────
 
