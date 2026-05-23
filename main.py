@@ -9,6 +9,7 @@ from app.features.dedup import DedupFeature
 from app.features.convert import ConvertFeature
 from app.features.filter import FilterFeature
 from app.features.columns import ColumnsFeature
+from app.features.pivot import PivotFeature
 
 
 def main():
@@ -29,6 +30,7 @@ def main():
     window.register_feature("convert", ConvertFeature())
     window.register_feature("filter", FilterFeature())
     window.register_feature("columns", ColumnsFeature())
+    window.register_feature("pivot", PivotFeature())
     window.show()
 
     sys.exit(app.exec())
