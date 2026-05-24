@@ -130,10 +130,30 @@ jobs:
 
             | 平台 | 文件 |
             |------|------|
-            | Windows | `GridFlow-${{ github.ref_name }}-Windows-x64.exe` |
-            | Linux | `GridFlow-${{ github.ref_name }}-Linux-x86_64` |
+            | 🪟 Windows | `GridFlow-${{ github.ref_name }}-Windows-x64.exe` |
+            | 🐧 Linux | `GridFlow-${{ github.ref_name }}-Linux-x86_64` |
 
-            ## 变更 / Changelog
-            见提交历史 / See commit history.
+            ---
+
+            ## 功能 / Features
+
+            ### 数据处理
+            - **✂️ 表格拆分** — 按指定字段拆分为独立文件或多个 Sheet，支持保留原表公式
+            - **🔗 表格合并** — 多文件纵向合并或多 Sheet 合并为单文件
+            - **🧹 数据去重** — 按指定列检测并删除重复行，可选保留首/尾
+            - **🔄 格式转换** — XLSX / CSV 批量互转
+
+            ### 数据分析
+            - **🔍 数据筛选** — 按条件过滤行，支持 11 种运算符、AND/OR 组合
+            - **📋 列操作** — 保留/删除/重命名/重排列序，支持简单计算列
+            - **📊 透视表** — 行/列/值字段交叉聚合，计数/求和/平均/最值
+            - **✅ 数据校验** — 空值检测、异常值(IQR)、类型检查、重复行检测
+
+            ### 特性
+            - 🌓 深色/浅色主题切换
+            - 🌐 中英双语界面
+            - 📂 拖拽导入文件
+            - ⚡ openpyxl 流式读写，低内存占用
+            - 🔒 完全离线，数据不上传
           files: |
             GridFlow-*
