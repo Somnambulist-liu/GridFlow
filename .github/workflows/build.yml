@@ -62,48 +62,6 @@ jobs:
           name: GridFlow-${{ env.APP_VERSION }}-Windows-${{ env.ARCH }}
           path: dist/GridFlow-*.exe
 
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Determine version
-        run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-          else
-            ver=$(python3 -c 'import re;f=open("version_info.txt").read();m=re.search(r"prodvers=\((\d+),\s*(\d+),\s*(\d+)",f);print(f"v{m[1]}.{m[2]}.{m[3]}")if m else"dev"')
-            echo "APP_VERSION=$ver" >> $GITHUB_ENV
-          fi
-
-      - name: Detect arch
-        run: |
-          arch=$(uname -m)
-          echo "ARCH=$arch" >> $GITHUB_ENV
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Build .app
-        run: pyinstaller build_macos.spec --noconfirm
-
-      - name: Zip .app and rename
-        run: |
-          name="GridFlow-$APP_VERSION-macOS-$ARCH.zip"
-          cd dist && zip -r "../$name" GridFlow.app
-          echo "ARTIFACT_NAME=$name" >> $GITHUB_ENV
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GridFlow-${{ env.APP_VERSION }}-macOS-${{ env.ARCH }}
-          path: GridFlow-*.zip
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -152,7 +110,7 @@ jobs:
           path: dist/GridFlow-*
 
   create-release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-linux]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -170,7 +128,6 @@ jobs:
             | 平台 | 文件 |
             |------|------|
             | Windows | `GridFlow-${{ github.ref_name }}-Windows-x64.exe` |
-            | macOS | `GridFlow-${{ github.ref_name }}-macOS-*.zip` |
             | Linux | `GridFlow-${{ github.ref_name }}-Linux-x86_64` |
 
             ## 变更 / Changelog
