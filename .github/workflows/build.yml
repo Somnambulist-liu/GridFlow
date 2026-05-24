@@ -15,6 +15,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Determine version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $ver = "${{ github.ref_name }}"
+          } else {
+            $txt = Get-Content version_info.txt -Raw
+            if ($txt -match 'prodvers=\((\d+),\s*(\d+),\s*(\d+),\s*\d+\)') {
+              $ver = "v$($matches[1]).$($matches[2]).$($matches[3])"
+            } else {
+              $ver = "dev"
+            }
+          }
+          echo "APP_VERSION=$ver" >> $env:GITHUB_ENV
+
+      - name: Detect arch
+        shell: pwsh
+        run: |
+          $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
+          if ($arch -eq "amd64") { $arch = "x64" }
+          if ($arch -eq "arm64") { $arch = "arm64" }
+          echo "ARCH=$arch" >> $env:GITHUB_ENV
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,25 +49,37 @@ jobs:
       - name: Build EXE
         run: pyinstaller build_win.spec --noconfirm
 
-      - name: Rename with platform + arch
+      - name: Rename artifact
         shell: pwsh
         run: |
-          $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
-          if ($arch -eq "amd64") { $arch = "x64" }
-          $name = "GridFlow-Windows-${arch}.exe"
+          $name = "GridFlow-$env:APP_VERSION-Windows-$env:ARCH.exe"
           Rename-Item -Path dist\GridFlow.exe -NewName $name
           echo "ARTIFACT_NAME=$name" >> $env:GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GridFlow-Windows-${{ runner.arch }}
-          path: dist/GridFlow-Windows-*.exe
+          name: GridFlow-${{ env.APP_VERSION }}-Windows-${{ env.ARCH }}
+          path: dist/GridFlow-*.exe
 
   build-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            ver=$(python3 -c 'import re;f=open("version_info.txt").read();m=re.search(r"prodvers=\((\d+),\s*(\d+),\s*(\d+)",f);print(f"v{m[1]}.{m[2]}.{m[3]}")if m else"dev"')
+            echo "APP_VERSION=$ver" >> $GITHUB_ENV
+          fi
+
+      - name: Detect arch
+        run: |
+          arch=$(uname -m)
+          echo "ARCH=$arch" >> $GITHUB_ENV
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,31 +92,46 @@ jobs:
       - name: Build .app
         run: pyinstaller build_macos.spec --noconfirm
 
-      - name: Zip .app with platform + arch
+      - name: Zip .app and rename
         run: |
-          arch=$(uname -m)
-          zip -r "GridFlow-macOS-${arch}.zip" dist/GridFlow.app
+          name="GridFlow-$APP_VERSION-macOS-$ARCH.zip"
+          cd dist && zip -r "../$name" GridFlow.app
+          echo "ARTIFACT_NAME=$name" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GridFlow-macOS-${{ runner.arch }}
-          path: GridFlow-macOS-*.zip
+          name: GridFlow-${{ env.APP_VERSION }}-macOS-${{ env.ARCH }}
+          path: GridFlow-*.zip
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Determine version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            ver=$(python3 -c 'import re;f=open("version_info.txt").read();m=re.search(r"prodvers=\((\d+),\s*(\d+),\s*(\d+)",f);print(f"v{m[1]}.{m[2]}.{m[3]}")if m else"dev"')
+            echo "APP_VERSION=$ver" >> $GITHUB_ENV
+          fi
+
+      - name: Detect arch
+        run: |
+          arch=$(uname -m)
+          echo "ARCH=$arch" >> $GITHUB_ENV
 
       - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libxkbcommon0 libgl1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -91,13 +141,12 @@ jobs:
 
       - name: Rename with platform + arch
         run: |
-          arch=$(uname -m)
-          name="GridFlow-Linux-${arch}"
-          mv dist/GridFlow "dist/${name}"
-          chmod +x "dist/${name}"
+          name="GridFlow-$APP_VERSION-Linux-$ARCH"
+          mv dist/GridFlow "dist/$name"
+          chmod +x "dist/$name"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GridFlow-Linux-${{ runner.arch }}
-          path: dist/GridFlow-Linux-*
+          name: GridFlow-${{ env.APP_VERSION }}-Linux-${{ env.ARCH }}
+          path: dist/GridFlow-*
