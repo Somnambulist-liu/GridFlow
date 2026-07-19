@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFileDialog, QComboBox, QRadioButton, QLineEdit,
     QTableView, QHeaderView, QProgressBar, QFrame,
-    QToolButton, QStackedWidget, QMenu, QCheckBox,
+    QToolButton, QStackedWidget, QMenu, QCheckBox, QSpinBox,
 )
 from PySide6.QtCore import Signal, Qt, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QDragEnterEvent, QDropEvent
@@ -175,6 +175,11 @@ class SplitFeature(QWidget):
             output_dir=config["output_dir"], output_path=output_path,
             name_pattern=config["name_pattern"], keep_header=config["keep_header"],
             preserve_formulas=config["preserve_formulas"],
+            header_row=config["header_row"],
+            include_lead_rows=config["include_lead_rows"],
+            include_tail_rows=config["include_tail_rows"],
+            tail_rows_start=config["tail_rows_start"],
+            tail_rows_end=config["tail_rows_end"],
         )
         self._worker.progress.connect(self.step3.update_progress)
         self._worker.finished.connect(self._on_split_finished)
@@ -389,6 +394,71 @@ class _Step2Config(QWidget):
         row1.addLayout(g2)
         layout.addLayout(row1)
 
+        # 标题行选择器
+        hr_row = QHBoxLayout()
+        hr_row.setSpacing(8)
+        self._header_row_label = QLabel()
+        hr_row.addWidget(self._header_row_label)
+        self.header_row_spin = QSpinBox()
+        self.header_row_spin.setMinimum(1)
+        self.header_row_spin.setMaximum(999)
+        self.header_row_spin.setValue(1)
+        self.header_row_spin.setFixedWidth(70)
+        self.header_row_spin.valueChanged.connect(self._on_header_row_changed)
+        hr_row.addWidget(self.header_row_spin)
+        self._header_row_hint = QLabel()
+        hr_row.addWidget(self._header_row_hint)
+        hr_row.addStretch()
+        layout.addLayout(hr_row)
+
+        # 前置行勾选框 + 预览
+        lead_row = QHBoxLayout()
+        lead_row.setSpacing(8)
+        self.lead_check = QCheckBox()
+        self.lead_check.setChecked(True)
+        self.lead_check.toggled.connect(self._on_lead_toggled)
+        lead_row.addWidget(self.lead_check)
+        self.lead_preview = QLabel()
+        lead_row.addWidget(self.lead_preview)
+        lead_row.addStretch()
+        layout.addLayout(lead_row)
+
+        # 尾部行勾选框 + 范围 + 预览
+        tail_row = QHBoxLayout()
+        tail_row.setSpacing(8)
+        self.tail_check = QCheckBox()
+        self.tail_check.setChecked(False)
+        self.tail_check.toggled.connect(self._on_tail_toggled)
+        tail_row.addWidget(self.tail_check)
+        self._tail_from_label = QLabel()
+        tail_row.addWidget(self._tail_from_label)
+        self.tail_from_spin = QSpinBox()
+        self.tail_from_spin.setMinimum(1)
+        self.tail_from_spin.setMaximum(999)
+        self.tail_from_spin.setValue(1)
+        self.tail_from_spin.setFixedWidth(70)
+        self.tail_from_spin.setEnabled(False)
+        self.tail_from_spin.setVisible(False)
+        self.tail_from_spin.valueChanged.connect(self._on_tail_range_changed)
+        tail_row.addWidget(self.tail_from_spin)
+        self._tail_to_label = QLabel()
+        tail_row.addWidget(self._tail_to_label)
+        self.tail_to_spin = QSpinBox()
+        self.tail_to_spin.setMinimum(1)
+        self.tail_to_spin.setMaximum(999)
+        self.tail_to_spin.setValue(1)
+        self.tail_to_spin.setFixedWidth(70)
+        self.tail_to_spin.setEnabled(False)
+        self.tail_to_spin.setVisible(False)
+        self.tail_to_spin.valueChanged.connect(self._on_tail_range_changed)
+        tail_row.addWidget(self.tail_to_spin)
+        self._tail_from_label.setVisible(False)
+        self._tail_to_label.setVisible(False)
+        self.tail_preview = QLabel()
+        tail_row.addWidget(self.tail_preview)
+        tail_row.addStretch()
+        layout.addLayout(tail_row)
+
         self._mode_section_label = QLabel()
         layout.addWidget(self._mode_section_label)
         mode_row = QHBoxLayout()
@@ -484,6 +554,14 @@ class _Step2Config(QWidget):
         self.output_dir_input.setPlaceholderText(self._lang.tr("split.output_dir_placeholder"))
         self.out_btn.setText(self._lang.tr("label.browse"))
         self.formula_check.setText(self._lang.tr("split.preserve_formulas"))
+        self._header_row_label.setText(self._lang.tr("split.header_row"))
+        self._header_row_hint.setText(self._lang.tr("split.header_row_hint"))
+        self.lead_check.setText(self._lang.tr("split.include_lead_rows"))
+        self.tail_check.setText(self._lang.tr("split.include_tail_rows"))
+        self._tail_from_label.setText(self._lang.tr("split.tail_rows_from"))
+        self._tail_to_label.setText(self._lang.tr("split.tail_rows_to"))
+        self._update_lead_preview()
+        self._update_tail_preview()
         self.naming_title.setText(self._lang.tr("split.file_naming"))
         self.prefix_input.setPlaceholderText(self._lang.tr("split.prefix_placeholder"))
         self.suffix_input.setPlaceholderText(self._lang.tr("split.suffix_placeholder"))
@@ -523,6 +601,39 @@ class _Step2Config(QWidget):
             f"QCheckBox::indicator {{ width: 14px; height: 14px; border-radius: 3px; border: 1px solid {c['BORDER']}; }} "
             f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; background-color: {c['PRIMARY']}; }}"
         )
+        self._header_row_label.setStyleSheet(
+            f"font-size: 9pt; font-weight: bold; color: {c['TEXT_SECONDARY']}; margin-bottom: 2px;")
+        self._header_row_hint.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")
+
+        checkbox_st = (
+            f"QCheckBox {{ color: {c['TEXT_SECONDARY']}; font-size: 9pt; spacing: 6px; }} "
+            f"QCheckBox::indicator {{ width: 14px; height: 14px; border-radius: 3px; border: 1px solid {c['BORDER']}; }} "
+            f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; background-color: {c['PRIMARY']}; }} "
+            f"QCheckBox::indicator:disabled {{ background-color: {c['BG_MAIN']}; }}"
+        )
+        self.lead_check.setStyleSheet(checkbox_st)
+        self.tail_check.setStyleSheet(checkbox_st)
+        self.lead_preview.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")
+        self.tail_preview.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")
+        self._tail_from_label.setStyleSheet(f"font-size: 9pt; color: {c['TEXT_SECONDARY']};")
+        self._tail_to_label.setStyleSheet(f"font-size: 9pt; color: {c['TEXT_SECONDARY']};")
+
+        spin_style = (
+            f"QSpinBox {{ border: 1px solid {c['BORDER']}; border-radius: {c['RADIUS_SM']}px; "
+            f"padding: 4px 6px; background-color: {c['BG_INPUT']}; color: {c['TEXT_PRIMARY']}; font-size: 10pt; }} "
+            f"QSpinBox:focus {{ border-color: {c['PRIMARY']}; }} "
+            f"QSpinBox:disabled {{ background-color: {c['BG_MAIN']}; color: {c['TEXT_MUTED']}; }} "
+            f"QSpinBox::up-button {{ subcontrol-origin: border; subcontrol-position: top right; width: 16px; "
+            f"border-left: 1px solid {c['BORDER']}; border-bottom: 1px solid {c['BORDER']}; "
+            f"border-top-right-radius: 3px; background: {c['BG_CARD']}; }} "
+            f"QSpinBox::down-button {{ subcontrol-origin: border; subcontrol-position: bottom right; width: 16px; "
+            f"border-left: 1px solid {c['BORDER']}; border-bottom-right-radius: 3px; background: {c['BG_CARD']}; }} "
+            f"QSpinBox::up-arrow {{ width: 6px; height: 6px; }} "
+            f"QSpinBox::down-arrow {{ width: 6px; height: 6px; }}"
+        )
+        self.header_row_spin.setStyleSheet(spin_style)
+        self.tail_from_spin.setStyleSheet(spin_style)
+        self.tail_to_spin.setStyleSheet(spin_style)
         self.sheet_combo.setStyleSheet(get_combo_style(c))
         self.column_combo.setStyleSheet(get_combo_style(c))
         self._plus1.setStyleSheet(f"color: {c['TEXT_MUTED']}; font-weight: bold; font-size: 10pt;")
@@ -565,7 +676,7 @@ class _Step2Config(QWidget):
         if not sheet_name or not self._file_path:
             return
         try:
-            cols = get_columns(self._file_path, sheet_name)
+            cols = get_columns(self._file_path, sheet_name, header_row=self.header_row_spin.value())
             self.column_combo.blockSignals(True)
             self.column_combo.clear()
             self.column_combo.addItems(cols)
@@ -576,6 +687,105 @@ class _Step2Config(QWidget):
         except Exception:
             pass
 
+    def _on_header_row_changed(self, _value: int):
+        """标题行变化时重新读取列名，并更新前置行复选框和预览。"""
+        hr = self.header_row_spin.value()
+        has_leading = hr > 1
+        self.lead_check.setEnabled(has_leading)
+        if has_leading:
+            self.lead_check.setChecked(True)
+        else:
+            self.lead_check.setChecked(False)
+        self._update_lead_preview()
+        # 重新加载列名
+        if not self._file_path:
+            return
+        sheet = self.sheet_combo.currentText()
+        if not sheet:
+            return
+        try:
+            cols = get_columns(self._file_path, sheet, header_row=hr)
+            self.column_combo.blockSignals(True)
+            self.column_combo.clear()
+            self.column_combo.addItems(cols)
+            self.column_combo.blockSignals(False)
+            if cols:
+                self.column_combo.setCurrentIndex(0)
+                self._on_column_changed(cols[0])
+            else:
+                self._current_values = {}
+                self._current_column = ""
+                self.field_btn.setEnabled(False)
+            self._check_valid()
+        except Exception:
+            pass
+
+    def _update_lead_preview(self):
+        """更新前置行预览标签。"""
+        hr = self.header_row_spin.value()
+        if hr > 1 and self.lead_check.isChecked():
+            start, end = 1, hr - 1
+            text = self._lang.tr("split.lead_rows_preview", start=start, end=end, n=end - start + 1)
+        else:
+            text = self._lang.tr("split.lead_rows_none")
+        self.lead_preview.setText(text)
+
+    def _on_lead_toggled(self, checked: bool):
+        """前置行复选框切换。"""
+        self._update_lead_preview()
+        self._check_valid()
+
+    def _on_tail_toggled(self, checked: bool):
+        """尾部行复选框切换。"""
+        show = checked
+        self.tail_from_spin.setVisible(show)
+        self.tail_from_spin.setEnabled(show)
+        self.tail_to_spin.setVisible(show)
+        self.tail_to_spin.setEnabled(show)
+        self._tail_from_label.setVisible(show)
+        self._tail_to_label.setVisible(show)
+        self.tail_preview.setVisible(show)
+        if show:
+            self._update_tail_preview()
+        self._check_valid()
+
+    def _on_tail_range_changed(self, _value: int):
+        """尾部行范围变化时确保 from <= to 并更新预览。"""
+        frm = self.tail_from_spin.value()
+        to = self.tail_to_spin.value()
+        if frm > to:
+            self.tail_to_spin.blockSignals(True)
+            self.tail_to_spin.setValue(frm)
+            self.tail_to_spin.blockSignals(False)
+        self._update_tail_preview()
+
+    def _update_tail_preview(self):
+        """读取尾部行内容并更新预览。"""
+        if not self._file_path or not self.tail_check.isChecked():
+            self.tail_preview.setText("")
+            return
+        sheet = self.sheet_combo.currentText()
+        if not sheet:
+            self.tail_preview.setText("")
+            return
+        frm = self.tail_from_spin.value()
+        to = self.tail_to_spin.value()
+        if frm > to:
+            self.tail_preview.setText("")
+            return
+        try:
+            from core.reader import read_row_range_preview
+            content = read_row_range_preview(self._file_path, sheet, frm, to)
+            if content:
+                self.tail_preview.setText(
+                    self._lang.tr("split.tail_rows_preview", start=frm, end=to,
+                                  n=to - frm + 1) + "  " + content)
+            else:
+                self.tail_preview.setText(
+                    self._lang.tr("split.tail_rows_preview", start=frm, end=to, n=to - frm + 1))
+        except Exception:
+            self.tail_preview.setText("")
+
     def _on_column_changed(self, column_name: str):
         if not column_name or not self._file_path:
             return
@@ -583,7 +793,7 @@ class _Step2Config(QWidget):
             sheet = self.sheet_combo.currentText()
             if not sheet:
                 return
-            values = get_unique_values(self._file_path, sheet, column_name)
+            values = get_unique_values(self._file_path, sheet, column_name, header_row=self.header_row_spin.value())
             self._current_values = values
             self._current_column = column_name
             self._build_field_menu(values)
@@ -657,6 +867,11 @@ class _Step2Config(QWidget):
             "output_dir": output_dir, "name_pattern": name_pattern,
             "keep_header": True,
             "preserve_formulas": self.formula_check.isChecked(),
+            "header_row": self.header_row_spin.value(),
+            "include_lead_rows": self.lead_check.isEnabled() and self.lead_check.isChecked(),
+            "include_tail_rows": self.tail_check.isChecked(),
+            "tail_rows_start": self.tail_from_spin.value() if self.tail_check.isChecked() else 0,
+            "tail_rows_end": self.tail_to_spin.value() if self.tail_check.isChecked() else 0,
         }
 
 

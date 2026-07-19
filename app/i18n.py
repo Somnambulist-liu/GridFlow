@@ -5,7 +5,7 @@ connects to the signal and calls _apply_lang() to refresh all visible text.
 """
 from PySide6.QtCore import QObject, Signal, QSettings
 
-APP_VERSION = "3.3.0"
+APP_VERSION = "3.4.0"
 
 # ── Chinese (default) ──────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ ZH_CN = {
     # App shell
     "app.title": "GridFlow",
     "app.subtitle": "表格数据流式处理，轻量、快速、离线可用",
-    "app.version": "v3.3.2",
+    "app.version": "v3.4.0",
     "btn.back": "← 首页",
     "btn.settings": "⚙ 设置",
     "btn.settings.tooltip": "设置",
@@ -81,6 +81,15 @@ ZH_CN = {
     "split.select_sheet_placeholder": "请先选择文件",
     "split.split_column": "拆分字段",
     "split.select_column_placeholder": "请先选择 Sheet",
+    "split.header_row": "标题行",
+    "split.header_row_hint": "指定包含列名的行号",
+    "split.include_lead_rows": "包含前置行",
+    "split.lead_rows_preview": "第 {start}-{end} 行（共 {n} 行）",
+    "split.lead_rows_none": "无可用行",
+    "split.include_tail_rows": "追加尾部行",
+    "split.tail_rows_from": "从",
+    "split.tail_rows_to": "到",
+    "split.tail_rows_preview": "第 {start}-{end} 行（共 {n} 行）",
     "split.split_mode": "拆分模式",
     "split.mode_files": "拆分为独立文件",
     "split.mode_sheets": "拆分为多个 Sheet",
@@ -256,7 +265,7 @@ ZH_CN = {
 EN_US = {
     "app.title": "GridFlow",
     "app.subtitle": "Streamlined Spreadsheet Processing — Lightweight, Fast, Offline",
-    "app.version": "v3.3.2",
+    "app.version": "v3.4.0",
     "btn.back": "← Home",
     "btn.settings": "⚙ Settings",
     "btn.settings.tooltip": "Settings",
@@ -317,6 +326,15 @@ EN_US = {
     "split.select_sheet_placeholder": "Please select a file first",
     "split.split_column": "Split Column",
     "split.select_column_placeholder": "Please select a sheet first",
+    "split.header_row": "Header Row",
+    "split.header_row_hint": "Row number containing column names",
+    "split.include_lead_rows": "Include Leading Rows",
+    "split.lead_rows_preview": "Rows {start}-{end} ({n} total)",
+    "split.lead_rows_none": "No rows available",
+    "split.include_tail_rows": "Append Tail Rows",
+    "split.tail_rows_from": "From",
+    "split.tail_rows_to": "To",
+    "split.tail_rows_preview": "Rows {start}-{end} ({n} total)",
     "split.split_mode": "Split Mode",
     "split.mode_files": "Split to Separate Files",
     "split.mode_sheets": "Split to Multiple Sheets",
