@@ -2,9 +2,9 @@ import os
 import sys
 from PySide6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
-    QStackedWidget, QPushButton, QApplication, QLabel,
+    QStackedWidget, QPushButton, QApplication, QLabel, QDialog,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 
 from app.theme_manager import ThemeManager
@@ -13,6 +13,11 @@ from app.home_page import HomePage
 from app.pipeline import PipelineContext
 from app.i18n import LangManager, APP_VERSION
 from app.settings_dialog import SettingsDialog
+from app.settings import get_auto_check_update, get_ignored_version
+from app.updater import (
+    is_frozen, should_auto_check, set_last_check_time,
+    UpdateChecker, UpdateDownloader, UpdateDialog, apply_update_and_restart,
+)
 
 
 class MainWindow(QMainWindow):
@@ -42,6 +47,9 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._connect_signals()
+
+        # Auto-check for updates 3 seconds after startup
+        QTimer.singleShot(3000, self._startup_check)
 
     def _apply_global_theme(self):
         c = self._theme.current_colors
@@ -91,6 +99,14 @@ class MainWindow(QMainWindow):
             f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
             f"border-radius: {c['RADIUS_SM']}px; padding: 4px 14px; font-size: 10pt; }} "
             f"QPushButton:hover {{ border-color: {c['PRIMARY']}; }}"
+        )
+
+        self.update_btn.setToolTip(self._lang.tr("update.check_now"))
+        self.update_btn.setStyleSheet(
+            f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
+            f"border-radius: {c['RADIUS_SM']}px; padding: 4px 10px; font-size: 12pt; }} "
+            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; }} "
+            f"QPushButton:disabled {{ color: {c['TEXT_MUTED']}; }}"
         )
 
     def _on_theme_changed(self, _theme_name: str):
@@ -147,6 +163,11 @@ class MainWindow(QMainWindow):
         self.theme_btn.clicked.connect(self._theme.toggle)
         header_layout.addWidget(self.theme_btn)
 
+        self.update_btn = QPushButton("\U0001F504")
+        self.update_btn.setToolTip(self._lang.tr("update.check_now"))
+        self.update_btn.clicked.connect(lambda: self._check_updates())
+        header_layout.addWidget(self.update_btn)
+
         root.addWidget(self.header)
 
         # ── 内容区 ──
@@ -183,4 +204,96 @@ class MainWindow(QMainWindow):
 
     def _on_settings_clicked(self):
         dlg = SettingsDialog(self)
+        dlg.check_updates_requested.connect(lambda: self._check_updates(status_label=dlg))
         dlg.exec()
+
+    # ── Update checking ─────────────────────────────────
+
+    def _check_updates(self, *, status_label=None):
+        """Check GitHub for newer releases."""
+        self._checker = UpdateChecker(APP_VERSION, self)
+        self._checker.up_to_date.connect(lambda: self._on_up_to_date(status_label))
+        self._checker.update_available.connect(
+            lambda info: self._on_update_available(info, status_label))
+        self._checker.error_occurred.connect(
+            lambda msg: self._on_check_error(msg, status_label))
+        self._checker.start()
+
+    def _on_up_to_date(self, status_label=None):
+        if status_label:
+            from app.settings_dialog import SettingsDialog
+            if isinstance(status_label, SettingsDialog):
+                status_label.set_check_status(self._lang.tr("update.up_to_date"))
+        # Record check time for cache
+        set_last_check_time()
+
+    def _on_update_available(self, info: dict, status_label=None):
+        set_last_check_time()
+        if status_label:
+            from app.settings_dialog import SettingsDialog
+            if isinstance(status_label, SettingsDialog):
+                status_label.set_check_status(
+                    f"{self._lang.tr('update.latest')}: {info['version']}")
+        # Skip if this version was ignored
+        ignored = get_ignored_version()
+        if ignored and ignored == info["version"]:
+            return
+        # Show dialog
+        dlg = UpdateDialog(info, APP_VERSION, self._lang, self)
+        if dlg.exec() == QDialog.Accepted:
+            self._download_update(info)
+
+    def _on_check_error(self, msg: str, status_label=None):
+        if msg == "not frozen":
+            display = self._lang.tr("update.frozen_required")
+        else:
+            display = f"{self._lang.tr('update.error')}: {msg}"
+        if status_label:
+            from app.settings_dialog import SettingsDialog
+            if isinstance(status_label, SettingsDialog):
+                status_label.set_check_status(display)
+        else:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, self._lang.tr("update.check_now"), display)
+
+    def _download_update(self, info: dict):
+        self._downloader = UpdateDownloader(info["download_url"], info.get("size", 0), self)
+        # Show a simple progress bar dialog
+        from PySide6.QtWidgets import QProgressDialog
+        progress = QProgressDialog(
+            self._lang.tr("update.downloading"), "", 0, 100, self)
+        progress.setWindowTitle(self._lang.tr("update.download"))
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        progress.setCancelButton(None)
+        progress.setModal(True)
+        progress.show()
+
+        def on_progress(cur, total):
+            if total > 0:
+                progress.setMaximum(total)
+                progress.setValue(cur)
+
+        def on_finished(path):
+            progress.close()
+            apply_update_and_restart(path)
+
+        def on_error(msg):
+            progress.close()
+
+        self._downloader.progress.connect(on_progress)
+        self._downloader.finished.connect(on_finished)
+        self._downloader.error_occurred.connect(on_error)
+        self._downloader.start()
+
+    # ── Startup auto‑check ──────────────────────────────
+
+    def _startup_check(self):
+        """Called after the window is shown, if auto‑check is enabled."""
+        if not is_frozen():
+            return
+        if not get_auto_check_update():
+            return
+        if not should_auto_check():
+            return
+        self._check_updates()

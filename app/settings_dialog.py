@@ -7,13 +7,19 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from PySide6.QtCore import Signal
+
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
 from app.settings import get_default_output_dir, set_default_output_dir
 from app.settings import get_auto_open_dir, set_auto_open_dir
+from app.settings import get_auto_check_update, set_auto_check_update
+from app.updater import is_frozen
 
 
 class SettingsDialog(QDialog):
+    check_updates_requested = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._theme = ThemeManager.instance()
@@ -87,6 +93,28 @@ class SettingsDialog(QDialog):
         self.auto_open_check.setChecked(get_auto_open_dir())
         layout.addWidget(self.auto_open_check)
 
+        # Auto-check for updates
+        self.auto_check_update = QCheckBox(self._lang.tr("update.auto_check"))
+        self.auto_check_update.setChecked(get_auto_check_update())
+        layout.addWidget(self.auto_check_update)
+
+        # Manual check for updates
+        check_row = QHBoxLayout()
+        check_row.setSpacing(8)
+        self.check_update_btn = QPushButton(self._lang.tr("update.check_now"))
+        self.check_update_btn.clicked.connect(self._on_check_updates)
+        self._check_status = QLabel("")
+        check_row.addWidget(self.check_update_btn)
+        check_row.addWidget(self._check_status)
+        check_row.addStretch()
+        layout.addLayout(check_row)
+
+        # Hint for non-frozen environment
+        self._frozen_hint = QLabel(
+            self._lang.tr("update.frozen_required") if not is_frozen() else "")
+        self._frozen_hint.setVisible(not is_frozen())
+        layout.addWidget(self._frozen_hint)
+
         layout.addStretch()
 
         # ── Buttons ──
@@ -122,7 +150,15 @@ class SettingsDialog(QDialog):
         set_default_output_dir(out_dir)
 
         set_auto_open_dir(self.auto_open_check.isChecked())
+        set_auto_check_update(self.auto_check_update.isChecked())
         self.accept()
+
+    def _on_check_updates(self):
+        self._check_status.setText(self._lang.tr("update.checking"))
+        self.check_updates_requested.emit()
+
+    def set_check_status(self, text: str):
+        self._check_status.setText(text)
 
     def _apply_styles(self):
         c = self._theme.current_colors
@@ -186,6 +222,17 @@ class SettingsDialog(QDialog):
             f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; "
             f"background-color: {c['PRIMARY']}; }}"
         )
+        self.auto_check_update.setStyleSheet(
+            f"QCheckBox {{ color: {c['TEXT_PRIMARY']}; font-size: 10pt; spacing: 8px; }} "
+            f"QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 3px; "
+            f"border: 2px solid {c['BORDER']}; }} "
+            f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; "
+            f"background-color: {c['PRIMARY']}; }}"
+        )
+
+        self._check_status.setStyleSheet(f"color: {c['TEXT_MUTED']}; font-size: 9pt;")
+        if hasattr(self, '_frozen_hint') and self._frozen_hint.isVisible():
+            self._frozen_hint.setStyleSheet(f"color: {c['TEXT_MUTED']}; font-size: 9pt;")
 
         browse_style = f"""
             QPushButton {{
@@ -199,6 +246,7 @@ class SettingsDialog(QDialog):
             QPushButton:hover {{ border-color: {c['PRIMARY']}; }}
         """
         self.browse_btn.setStyleSheet(browse_style)
+        self.check_update_btn.setStyleSheet(browse_style)
 
         btn_base = f"""
             QPushButton {{
@@ -231,5 +279,9 @@ class SettingsDialog(QDialog):
         self.output_dir_input.setPlaceholderText(self._lang.tr("settings.output_dir_placeholder"))
         self.browse_btn.setText(self._lang.tr("label.browse"))
         self.auto_open_check.setText(self._lang.tr("settings.auto_open_dir"))
+        self.auto_check_update.setText(self._lang.tr("update.auto_check"))
+        self.check_update_btn.setText(self._lang.tr("update.check_now"))
+        if hasattr(self, '_frozen_hint'):
+            self._frozen_hint.setText(self._lang.tr("update.frozen_required"))
         self.cancel_btn.setText(self._lang.tr("btn.cancel"))
         self.save_btn.setText(self._lang.tr("btn.save"))

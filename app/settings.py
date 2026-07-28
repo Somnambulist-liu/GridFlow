@@ -32,3 +32,22 @@ def get_auto_open_dir() -> bool:
 
 def set_auto_open_dir(enabled: bool):
     _settings.setValue("auto_open_dir", enabled)
+
+
+def get_auto_check_update() -> bool:
+    val = _settings.value("auto_check_update", True)
+    if isinstance(val, str):
+        return val.lower() == "true"
+    return bool(val)
+
+
+def set_auto_check_update(enabled: bool):
+    _settings.setValue("auto_check_update", enabled)
+
+
+def get_ignored_version() -> str:
+    return _settings.value("update/ignored_version", "") or ""
+
+
+def set_ignored_version(version: str):
+    _settings.setValue("update/ignored_version", version)

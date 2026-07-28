@@ -4,7 +4,7 @@
   <img src="resources/icon.png" alt="GridFlow Logo" width="128" height="128">
 </p>
 
-<p align="center"><strong>表格数据流式处理工具箱 — 轻量、快速、离线可用 | v3.4.0</strong></p>
+<p align="center"><strong>表格数据流式处理工具箱 — 轻量、快速、离线可用 | v3.5.0</strong></p>
 
 ---
 

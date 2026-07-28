@@ -5,7 +5,7 @@ connects to the signal and calls _apply_lang() to refresh all visible text.
 """
 from PySide6.QtCore import QObject, Signal, QSettings
 
-APP_VERSION = "3.4.0"
+APP_VERSION = "3.5.0"
 
 # ── Chinese (default) ──────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ ZH_CN = {
     # App shell
     "app.title": "GridFlow",
     "app.subtitle": "表格数据流式处理，轻量、快速、离线可用",
-    "app.version": "v3.4.0",
+    "app.version": "v3.5.0",
     "btn.back": "← 首页",
     "btn.settings": "⚙ 设置",
     "btn.settings.tooltip": "设置",
@@ -119,6 +119,22 @@ ZH_CN = {
     "split.field_tooltip": "点击查看该字段的所有值",
     "split.preserve_formulas": "保留原表公式（默认只保留数据）",
     "split.dialog_output_dir": "选择输出目录",
+
+    # Update
+    "update.title": "发现新版本",
+    "update.current": "当前版本",
+    "update.latest": "最新版本",
+    "update.check_now": "检查更新",
+    "update.checking": "正在检查更新...",
+    "update.up_to_date": "已是最新版本",
+    "update.download": "下载更新",
+    "update.ignore": "忽略此版本",
+    "update.later": "稍后提醒",
+    "update.downloading": "正在下载...",
+    "update.installing": "正在安装更新...应用将自动重启",
+    "update.error": "检查更新失败",
+    "update.auto_check": "启动时自动检查更新",
+    "update.frozen_required": "仅打包版本支持在线更新",
 
     # Merge feature
     "merge.mode": "合并模式",
@@ -265,7 +281,7 @@ ZH_CN = {
 EN_US = {
     "app.title": "GridFlow",
     "app.subtitle": "Streamlined Spreadsheet Processing — Lightweight, Fast, Offline",
-    "app.version": "v3.4.0",
+    "app.version": "v3.5.0",
     "btn.back": "← Home",
     "btn.settings": "⚙ Settings",
     "btn.settings.tooltip": "Settings",
@@ -364,6 +380,22 @@ EN_US = {
     "split.field_tooltip": "Click to view all values of this field",
     "split.preserve_formulas": "Preserve original formulas (default: data only)",
     "split.dialog_output_dir": "Select Output Directory",
+
+    # Update
+    "update.title": "Update Available",
+    "update.current": "Current Version",
+    "update.latest": "Latest Version",
+    "update.check_now": "Check for Updates",
+    "update.checking": "Checking for updates...",
+    "update.up_to_date": "You are up to date",
+    "update.download": "Download Update",
+    "update.ignore": "Ignore This Version",
+    "update.later": "Remind Later",
+    "update.downloading": "Downloading...",
+    "update.installing": "Installing update... App will restart",
+    "update.error": "Update check failed",
+    "update.auto_check": "Auto-check for updates on startup",
+    "update.frozen_required": "Online update is only available for packaged version",
 
     # Merge feature
     "merge.mode": "Merge Mode",
