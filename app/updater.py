@@ -597,21 +597,53 @@ def should_auto_check() -> bool:
 
 # ── .bat installer ───────────────────────────────────────────
 
+# PyInstaller 在 onefile 模式下会给自己设置这些内部变量。替换完成后若直接 start 新 EXE，
+# 新进程会**继承**它们，PyInstaller 6.22+ 的 bootloader（pyi_security.c 的父进程校验）
+# 会误认为自己是父进程解包出来的子进程，并因 home 目录名不符而拒绝启动：
+#   Security validation failure: unexpected name of application's home directory!
+# 因此启动新版本前必须把这些变量清掉。
+_PYI_ENV_VARS = (
+    "_PYI_APPLICATION_HOME_DIR",
+    "_PYI_ARCHIVE_FILE",
+    "_PYI_PARENT_PROCESS_LEVEL",
+    "_PYI_SPLASH_IPC",
+    "_MEIPASS",
+    "_MEIPASS2",
+)
+
+
+def clean_child_env() -> dict:
+    """子进程用的干净环境：去掉 PyInstaller 的 onefile 内部变量。"""
+    env = {k: v for k, v in os.environ.items() if k not in _PYI_ENV_VARS}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"   # 官方开关：不把内部变量继续往下传
+    return env
+
+
 def apply_update_and_restart(tmp_exe: str):
-    """Write .bat script, launch it, exit current process."""
+    """写 .bat：等旧进程退出 → 覆盖 EXE → 启动新版本；然后退出当前进程。
+
+    两处保险：Popen 用干净环境启动 cmd；.bat 里再显式清一遍变量，
+    这样即使脚本被别的方式拉起（例如用户手动运行）也不会把脏环境带进新版本。
+    """
     old = sys.executable
     bat = os.path.join(tempfile.gettempdir(), "gridflow_updater.bat")
+    clears = "\n".join(f"set {name}=" for name in _PYI_ENV_VARS)
     script = f'''@echo off
 chcp 65001 >nul
+{clears}
+set PYINSTALLER_RESET_ENVIRONMENT=1
 echo Updating GridFlow...
+set tries=0
 :wait
-timeout /t 2 /nobreak >nul
-move /Y "{tmp_exe}" "{old}"
-if %errorlevel% neq 0 (
-    echo Update failed. Please reinstall manually.
-    pause
-    exit /b 1
-)
+timeout /t 1 /nobreak >nul
+move /Y "{tmp_exe}" "{old}" >nul 2>&1
+if not errorlevel 1 goto start_app
+set /a tries+=1
+if %tries% lss 20 goto wait
+echo Update failed. Please reinstall manually.
+pause
+exit /b 1
+:start_app
 start "" "{old}"
 del "%~f0"
 '''
@@ -623,6 +655,7 @@ del "%~f0"
     si.wShowWindow = subprocess.SW_HIDE
     subprocess.Popen(
         ["cmd.exe", "/c", bat],
+        env=clean_child_env(),
         startupinfo=si,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )

@@ -1,3 +1,6 @@
 pyside6>=6.5.0
 openpyxl>=3.1.0
-pyinstaller>=5.13.0
+# 6.22 起 bootloader 增加 onefile 父进程安全校验（pyi_security.c）；
+# 下限锁到该版本是为了让本地构建与 CI 行为一致——此前未锁版本，
+# CI 拉到 6.22.x 而本地是 6.20.0，导致“更新后重启报安全校验失败”只在 CI 产物上出现
+pyinstaller>=6.22,<7
