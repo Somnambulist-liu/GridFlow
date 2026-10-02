@@ -13,7 +13,7 @@ from core.reader import get_sheet_names, get_columns
 from core.deduper import DedupWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
-from app.widgets.common import get_combo_style, section_label
+from app.widgets.common import get_combo_style, release_worker, section_label
 
 
 class DedupFeature(QWidget):
@@ -235,6 +235,7 @@ class DedupFeature(QWidget):
         self._output_dir = output_dir
         keep = "first" if self.keep_first.isChecked() else "last"
 
+        release_worker(self)
         self._worker = DedupWorker(self)
         self._worker.configure(
             file_path=self._file_path, sheet_name=sheet,

@@ -1,16 +1,30 @@
 import sys
 import os
+from importlib import import_module
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
-from app.main_window import MainWindow
-from app.features.split import SplitFeature
-from app.features.merge import MergeFeature
-from app.features.dedup import DedupFeature
-from app.features.convert import ConvertFeature
-from app.features.filter import FilterFeature
-from app.features.columns import ColumnsFeature
-from app.features.pivot import PivotFeature
-from app.features.validate import ValidateFeature
+
+# 功能模块按需加载：启动时只建首页，点进某个功能才 import 对应模块
+# （openpyxl 的导入约 200ms，之前每次启动都会付这个开销）
+FEATURE_MODULES = (
+    ("split", "app.features.split", "SplitFeature"),
+    ("merge", "app.features.merge", "MergeFeature"),
+    ("dedup", "app.features.dedup", "DedupFeature"),
+    ("convert", "app.features.convert", "ConvertFeature"),
+    ("filter", "app.features.filter", "FilterFeature"),
+    ("columns", "app.features.columns", "ColumnsFeature"),
+    ("pivot", "app.features.pivot", "PivotFeature"),
+    ("validate", "app.features.validate", "ValidateFeature"),
+)
+
+
+def _make_feature_factory(module_name: str, class_name: str):
+    """返回一个延迟构造功能页面的工厂。"""
+    def factory():
+        return getattr(import_module(module_name), class_name)()
+    factory.__name__ = class_name
+    return factory
 
 
 def main():
@@ -24,15 +38,11 @@ def main():
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
+    from app.main_window import MainWindow
+
     window = MainWindow()
-    window.register_feature("split", SplitFeature())
-    window.register_feature("merge", MergeFeature())
-    window.register_feature("dedup", DedupFeature())
-    window.register_feature("convert", ConvertFeature())
-    window.register_feature("filter", FilterFeature())
-    window.register_feature("columns", ColumnsFeature())
-    window.register_feature("pivot", PivotFeature())
-    window.register_feature("validate", ValidateFeature())
+    for feature_id, module_name, class_name in FEATURE_MODULES:
+        window.register_feature(feature_id, _make_feature_factory(module_name, class_name))
     window.show()
 
     sys.exit(app.exec())

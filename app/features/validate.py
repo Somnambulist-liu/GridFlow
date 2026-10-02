@@ -13,7 +13,7 @@ from core.reader import get_sheet_names
 from core.validator import ValidateWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
-from app.widgets.common import get_combo_style, section_label
+from app.widgets.common import get_combo_style, release_worker, section_label
 
 
 class ValidateFeature(QWidget):
@@ -241,6 +241,7 @@ class ValidateFeature(QWidget):
         output_dir = self.output_dir_input.text().strip() or os.path.dirname(self._file_path)
         self._output_dir = output_dir
 
+        release_worker(self)
         self._worker = ValidateWorker(self)
         self._worker.configure(
             file_path=self._file_path, sheet_name=sheet,

@@ -4,7 +4,7 @@
   <img src="resources/icon.png" alt="GridFlow Logo" width="128" height="128">
 </p>
 
-<p align="center"><strong>表格数据流式处理工具箱 — 轻量、快速、离线可用 | v3.5.0</strong></p>
+<p align="center"><strong>表格数据流式处理工具箱 — 轻量、快速、离线可用 | v3.5.1</strong></p>
 
 ---
 
@@ -103,7 +103,7 @@ sheet2split/
 │       ├── pivot.py         # 透视表
 │       └── validate.py      # 数据校验
 └── core/
-    ├── reader.py            # openpyxl 流式读取
+    ├── reader.py            # openpyxl 读取 + 样式去重 + 版式快照
     ├── splitter.py          # 拆分 Worker
     ├── merger.py            # 合并 Worker
     ├── deduper.py           # 去重 Worker
@@ -120,6 +120,94 @@ sheet2split/
 - **数据处理**：openpyxl（read_only 流式读取 + Workbook 写入），无需 pandas
 - **并发模型**：QThread Worker，progress / finished / error 信号驱动 UI 更新
 - **打包**：PyInstaller，支持 Windows (.exe) / macOS (.app) / Linux，排除 30+ 未使用的 Qt 模块
+
+---
+
+## 性能优化
+
+启动速度与内存做过一轮专项优化，所有结论都能用 `tools/` 下的脚本复现
+（基准数据采集于 20k / 60k 行 × 15 列的合成报表，Windows + Python 3.14 + PySide6 6.11）。
+
+### 启动
+
+- **功能页面惰性创建**：启动时只构建首页，点进某个功能才 import 对应模块并建 UI；
+  `app.updater`、`app.settings_dialog` 也改成按需导入。
+- 效果（离屏模式，从进程启动到窗口显示）：
+
+  | 指标 | 优化前 | 优化后 |
+  |---|---|---|
+  | 启动总耗时 | 0.42 – 0.54 s | 0.12 – 0.13 s |
+  | 启动常驻内存 | 89 MB | 47 MB |
+
+- 代价：**首次**打开某个数据处理功能需要 import openpyxl（约 0.2 s），
+  此后各功能页的打开耗时都在 10 ms 以内。
+
+### 处理过程内存
+
+- **拆分（保留样式）**：源文件只解析一次（值、样式、列宽、行高、合并区域一次性取全）；
+  单元格样式按「样式指纹」去重，不再逐格复制 Font/Fill/Border/Alignment；
+  逐行流式处理，不再 `list(ws.iter_rows())`。
+
+  | 数据量 | 优化前 | 优化后 |
+  |---|---|---|
+  | 20k 行 × 15 列（50 个分组） | 27.9 s / 825 MB | 5.0 s / 222 MB |
+  | 60k 行 × 15 列（50 个分组） | 85.7 s / 2256 MB | 15.0 s / 495 MB |
+
+- **其余处理全部改为单趟扫描 + `write_only` 流式写出**，内存不再随行数增长
+  （20k → 60k 行时，优化前翻倍甚至翻三倍，优化后基本不变）：
+
+  | 场景 | 20k 行（优化前 → 优化后） | 60k 行（优化前 → 优化后） |
+  |---|---|---|
+  | 合并 3 个文件 | 392 MB → 55 MB | 1039 MB → 58 MB |
+  | 筛选 | 108 MB → 54 MB | 225 MB → 58 MB |
+  | 列操作 | 109 MB → 54 MB | 220 MB → 58 MB |
+  | 透视表 | 77 MB → 54 MB | — |
+  | 数据校验 | 76 MB → 53 MB | — |
+  | CSV → XLSX | 156 MB → 52 MB | — |
+  | 去重（保留首次） | 55 MB → 54 MB | 57 MB → 58 MB |
+
+  > 约 53 MB 是「Python + PySide6 + openpyxl 已加载」的地板；去重原本就只保留
+  > 唯一键集合，所以优化前后都在地板附近，本次只修掉了「保留末条」的 O(n²) 回查。
+
+- **交互过程中的对象回收**：菜单重建时释放旧 QMenu（主题切换/换列原本每次泄漏
+  2 个菜单对象）、每次任务结束后回收已完成的 QThread worker、
+  放弃输出（没有重复行 / 没有匹配行）或中途失败时清理 openpyxl 的临时文件。
+  10 次主题切换 + 10 次换列的 QMenu 数量：优化前 6 → 36，优化后 2 → 3；
+  放弃输出与失败转换后的临时文件残留：优化前无回收路径 → 优化后 0 个。
+- **去重的「保留最后一条」**：旧实现每遇到一条重复就线性回查，复杂度 O(n²)；
+  改为位置表，O(n)。
+
+### 正确性验证
+
+性能改动全部以「输出逐字节一致」为验收标准：
+
+- `tools/verify_outputs.py` 覆盖 16 个场景（8 个功能 + 保留末条去重 / 无匹配筛选 /
+  只有表头的表 / 字段不存在 / 计算列 / 四项校验全开 / 空文件参与合并），
+  对比单元格值、字体、填充、边框、对齐、数字格式、列宽、行高、合并区域、Sheet 名、
+  输出文件名与完成提示文案。
+- `tools/edge_scenarios.py` 单独对比拆分功能的公式平移、前置行/尾部行、多 Sheet 模式
+  与合并单元格（含一个「故意写错」的对照组，用于确认用例确实能报出差异）。
+- `tools/smoke_ui.py`、`tools/leak_probe.py` 检查 8 个功能页的惰性创建与资源回收。
+
+### 复现方式
+
+```bash
+python tools/make_fixture.py 20000 15      # 生成基准数据（可改行数/列数）
+python tools/bench_startup.py              # 启动耗时 + 启动内存
+python tools/bench_memory.py --all         # 各功能的耗时与峰值内存
+python tools/bench_report.py               # 汇总前后对比表
+python tools/verify_outputs.py --out test_output/verify/after   # 输出结果快照
+python tools/edge_scenarios.py --out test_output/edge/new       # 公式/前置行/合并单元格等边界
+python tools/smoke_ui.py                   # 无头 UI 冒烟测试（8 个功能页）
+python tools/leak_probe.py                 # 菜单/线程/临时文件回收检测
+```
+
+对比改动前的实现时，把旧版 `core/` 放到任意目录后用 `--core-dir` 指向它即可
+（例如 `python tools/verify_outputs.py --core-dir test_output/oldver --out ...`）。
+
+`tools/` 只用于开发验证，不会被 PyInstaller 打进安装包；
+但 `main.py` 改成惰性 import 后，功能模块需要写进各 `*.spec` 的 `hiddenimports`
+（已配置），`tools/frozen_probe.py` 可用于验证打包产物能正常惰性加载全部功能页。
 
 ---
 
@@ -158,3 +246,35 @@ pyinstaller build_linux.spec  # Linux
 ```
 
 **依赖项**：PySide6、openpyxl、pyinstaller（仅打包时需要）
+
+### 版本号与产物
+
+- **版本来源**：以 [version_info.txt](version_info.txt) 的 `prodvers` 为准（CI 用它生成
+  `vX.Y.Z`）。改版本时三处要一起改：`version_info.txt`（`prodvers`/`filevers` 与
+  `FileVersion`/`ProductVersion` 字符串）、[app/i18n.py](app/i18n.py) 的 `APP_VERSION`、
+  中英文两处 `app.version`。
+- **产物命名**：[.github/workflows/build.yml](.github/workflows/build.yml) 会把
+  `dist/GridFlow(.exe)` 重命名为 `GridFlow-<版本>-<平台>-<架构>(.exe)`，
+  并生成同名的 `.sha256` 校验文件（coreutils 格式，可直接 `sha256sum -c`）。
+
+  ```bash
+  pyinstaller build_win.spec --noconfirm        # 本地打包
+  # → dist/GridFlow.exe，按上面的规则改名/算校验值即可得到发布产物
+  ```
+
+- **发布说明**：[RELEASE_NOTES.md](RELEASE_NOTES.md) 是 GitHub Release 正文模板，
+  打 tag 时由 workflow 读取：把 `@VERSION@` 替换成 tag，并在末尾自动附上各产物的
+  SHA256 校验值——发版信息里不用手写哈希。
+- **校验文件完整性**：
+
+  ```bash
+  sha256sum -c GridFlow-v3.5.1-Linux-x86_64.sha256          # Linux
+  ```
+
+  ```powershell
+  Get-FileHash .\GridFlow-v3.5.1-Windows-x64.exe -Algorithm SHA256   # Windows PowerShell
+  ```
+
+- **打包注意**：`main.py` 用惰性 import 加载功能模块，PyInstaller 的静态扫描看不到
+  这些模块，改动打包配置时务必保留三个 `*.spec` 里的 `hiddenimports`；
+  可用 `tools/frozen_probe.py` 验证打包产物能正常打开全部 8 个功能页。

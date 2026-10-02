@@ -12,7 +12,7 @@ from core.reader import get_sheet_names, get_columns
 from core.pivoter import PivotWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
-from app.widgets.common import get_combo_style, section_label
+from app.widgets.common import get_combo_style, release_worker, section_label
 
 
 # Aggregation definitions: (i18n_key, code)
@@ -273,6 +273,7 @@ class PivotFeature(QWidget):
         base = os.path.splitext(os.path.basename(self._file_path))[0]
         output_name = f"{base}_透视表.xlsx"
 
+        release_worker(self)
         self._worker = PivotWorker(self)
         self._worker.configure(
             file_path=self._file_path, sheet_name=sheet,

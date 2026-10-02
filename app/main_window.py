@@ -12,17 +12,11 @@ from app.styles import build_global_stylesheet
 from app.home_page import HomePage
 from app.pipeline import PipelineContext
 from app.i18n import LangManager, APP_VERSION
-from app.settings_dialog import SettingsDialog
-from app.settings import get_auto_check_update, get_ignored_version
-from app.updater import (
-    is_frozen, should_auto_check, set_last_check_time,
-    UpdateChecker, UpdateDownloader, UpdateDialog, apply_update_and_restart,
-)
+# app.updater / app.settings_dialog 只在真正需要时才导入（自动更新、设置弹窗），
+# 它们会把 http.client、subprocess 等模块拖进启动路径。
 
 
 class MainWindow(QMainWindow):
-    FEATURE_INDEX = {"split": 1, "merge": 2, "dedup": 3, "convert": 4, "filter": 5, "columns": 6, "pivot": 7, "validate": 8}
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("GridFlow")
@@ -43,7 +37,8 @@ class MainWindow(QMainWindow):
         self._lang.lang_changed.connect(self._on_lang_changed)
 
         self._active_feature = None
-        self._feature_widgets = {}
+        self._feature_factories = {}   # feature_id -> 构造该页面的工厂
+        self._feature_widgets = {}     # feature_id -> 已创建的页面
 
         self._setup_ui()
         self._connect_signals()
@@ -184,17 +179,37 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         self.home_page.feature_selected.connect(self._on_feature_selected)
 
-    def register_feature(self, feature_id: str, widget: QWidget):
-        """注册功能模块"""
+    def register_feature(self, feature_id: str, factory):
+        """注册功能模块。
+
+        ``factory`` 可以是构造页面的可调用对象（惰性创建，首次进入才建 UI），
+        也可以直接传一个已创建好的 QWidget（兼容旧调用方式）。
+        """
+        if isinstance(factory, QWidget):
+            self._feature_widgets[feature_id] = factory
+            self.stack.addWidget(factory)
+        else:
+            self._feature_factories[feature_id] = factory
+
+    def _ensure_feature(self, feature_id: str):
+        """按需创建功能页面并加入 stack。"""
+        widget = self._feature_widgets.get(feature_id)
+        if widget is not None:
+            return widget
+        factory = self._feature_factories.get(feature_id)
+        if factory is None:
+            return None
+        widget = factory()
         self._feature_widgets[feature_id] = widget
         self.stack.addWidget(widget)
+        return widget
 
     def _on_feature_selected(self, feature_id: str):
-        if feature_id not in self._feature_widgets:
+        widget = self._ensure_feature(feature_id)
+        if widget is None:
             return
         self._active_feature = feature_id
-        idx = self.FEATURE_INDEX.get(feature_id, 1)
-        self.stack.setCurrentIndex(idx)
+        self.stack.setCurrentWidget(widget)
         self.back_btn.setVisible(True)
 
     def _go_home(self):
@@ -203,6 +218,8 @@ class MainWindow(QMainWindow):
         self.back_btn.setVisible(False)
 
     def _on_settings_clicked(self):
+        from app.settings_dialog import SettingsDialog
+
         dlg = SettingsDialog(self)
         dlg.check_updates_requested.connect(lambda: self._check_updates(status_label=dlg))
         dlg.exec()
@@ -211,6 +228,8 @@ class MainWindow(QMainWindow):
 
     def _check_updates(self, *, status_label=None):
         """Check GitHub for newer releases."""
+        from app.updater import UpdateChecker
+
         self._checker = UpdateChecker(APP_VERSION, self)
         self._checker.up_to_date.connect(lambda: self._on_up_to_date(status_label))
         self._checker.update_available.connect(
@@ -220,6 +239,8 @@ class MainWindow(QMainWindow):
         self._checker.start()
 
     def _on_up_to_date(self, status_label=None):
+        from app.updater import set_last_check_time
+
         if status_label:
             from app.settings_dialog import SettingsDialog
             if isinstance(status_label, SettingsDialog):
@@ -228,6 +249,9 @@ class MainWindow(QMainWindow):
         set_last_check_time()
 
     def _on_update_available(self, info: dict, status_label=None):
+        from app.settings import get_ignored_version
+        from app.updater import set_last_check_time, UpdateDialog
+
         set_last_check_time()
         if status_label:
             from app.settings_dialog import SettingsDialog
@@ -257,6 +281,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, self._lang.tr("update.check_now"), display)
 
     def _download_update(self, info: dict):
+        from app.updater import UpdateDownloader, apply_update_and_restart
+
         self._downloader = UpdateDownloader(info["download_url"], info.get("size", 0), self)
         # Show a simple progress bar dialog
         from PySide6.QtWidgets import QProgressDialog
@@ -290,6 +316,9 @@ class MainWindow(QMainWindow):
 
     def _startup_check(self):
         """Called after the window is shown, if auto‑check is enabled."""
+        from app.settings import get_auto_check_update
+        from app.updater import is_frozen, should_auto_check
+
         if not is_frozen():
             return
         if not get_auto_check_update():

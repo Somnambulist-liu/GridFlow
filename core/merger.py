@@ -2,6 +2,8 @@ import os
 import openpyxl
 from PySide6.QtCore import QThread, Signal
 
+from core.reader import StreamedWorkbook
+
 
 class MergeWorker(QThread):
     progress = Signal(int, int, str)
@@ -41,83 +43,82 @@ class MergeWorker(QThread):
             self.error_occurred.emit(str(e))
 
     def _merge_files(self):
+        """逐文件流式读取并直接写入 write_only 工作簿（内存与总行数无关）。"""
         total = len(self.file_paths)
         self.progress.emit(0, total, "开始合并...")
-        all_rows = []
-        headers = None
+        row_count = 0
 
-        for i, fp in enumerate(self.file_paths):
-            if self._is_cancelled:
+        with StreamedWorkbook() as out:
+            out_ws = None
+            for i, fp in enumerate(self.file_paths):
+                if self._is_cancelled:
+                    return                       # __exit__ 会清掉临时文件
+                self.progress.emit(i + 1, total, f"读取：{os.path.basename(fp)}")
+                wb = openpyxl.load_workbook(fp, read_only=True)
+                try:
+                    ws = wb.active
+                    it = ws.iter_rows(values_only=True)
+                    try:
+                        hdr = [str(c) if c is not None else f"Col{j}"
+                               for j, c in enumerate(next(it))]
+                    except StopIteration:
+                        continue
+                    if out_ws is None:
+                        out_ws = out.sheet()
+                        out_ws.append(hdr)
+                    for row in it:
+                        out_ws.append(row)
+                        row_count += 1
+                finally:
+                    wb.close()
+
+            if out_ws is None:
+                self.finished.emit("没有读取到任何数据")
                 return
-            self.progress.emit(i + 1, total, f"读取：{os.path.basename(fp)}")
-            wb = openpyxl.load_workbook(fp, read_only=True)
-            ws = wb.active
-            it = ws.iter_rows(values_only=True)
-            try:
-                hdr = [str(c) if c is not None else f"Col{j}" for j, c in enumerate(next(it))]
-            except StopIteration:
-                wb.close()
-                continue
-            if headers is None:
-                headers = hdr
-            for row in it:
-                all_rows.append(tuple(row))
-            wb.close()
 
-        if headers is None:
-            self.finished.emit("没有读取到任何数据")
-            return
+            self.progress.emit(total, total, "正在写入合并文件...")
+            out.save(os.path.join(self.output_dir, self.output_name))
 
-        self.progress.emit(total, total, "正在写入合并文件...")
-        out_path = os.path.join(self.output_dir, self.output_name)
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.append(headers)
-        for row in all_rows:
-            ws.append(row)
-        wb.save(out_path)
-        wb.close()
-
-        summary = f"合并完成！共合并 {total} 个文件，{len(all_rows)} 行数据"
+        summary = f"合并完成！共合并 {total} 个文件，{row_count} 行数据"
         self.progress.emit(total, total, summary)
         self.finished.emit(summary)
 
     def _merge_sheets(self):
-        all_rows = []
-        headers = None
+        """逐 Sheet 流式读取并直接写入 write_only 工作簿。"""
         total = len(self.sheet_names)
+        row_count = 0
 
-        wb = openpyxl.load_workbook(self.file_path, read_only=True)
-        for i, sn in enumerate(self.sheet_names):
-            if self._is_cancelled:
-                break
-            self.progress.emit(i + 1, total, f"读取 Sheet：{sn}")
-            ws = wb[sn]
-            it = ws.iter_rows(values_only=True)
+        with StreamedWorkbook() as out:
+            out_ws = None
+            wb = openpyxl.load_workbook(self.file_path, read_only=True)
             try:
-                hdr = [str(c) if c is not None else f"Col{j}" for j, c in enumerate(next(it))]
-            except StopIteration:
-                continue
-            if headers is None:
-                headers = hdr
-            for row in it:
-                all_rows.append(tuple(row))
-        wb.close()
+                for i, sn in enumerate(self.sheet_names):
+                    if self._is_cancelled:
+                        break
+                    self.progress.emit(i + 1, total, f"读取 Sheet：{sn}")
+                    ws = wb[sn]
+                    it = ws.iter_rows(values_only=True)
+                    try:
+                        hdr = [str(c) if c is not None else f"Col{j}"
+                               for j, c in enumerate(next(it))]
+                    except StopIteration:
+                        continue
+                    if out_ws is None:
+                        out_ws = out.sheet()
+                        out_ws.append(hdr)
+                    for row in it:
+                        out_ws.append(row)
+                        row_count += 1
+            finally:
+                wb.close()
 
-        if headers is None:
-            self.finished.emit("没有读取到任何数据")
-            return
+            if out_ws is None:
+                self.finished.emit("没有读取到任何数据")
+                return
 
-        self.progress.emit(total, total, "正在写入合并文件...")
-        out_path = os.path.join(self.output_dir, self.output_name)
-        owb = openpyxl.Workbook()
-        ows = owb.active
-        ows.append(headers)
-        for row in all_rows:
-            ows.append(row)
-        owb.save(out_path)
-        owb.close()
+            self.progress.emit(total, total, "正在写入合并文件...")
+            out.save(os.path.join(self.output_dir, self.output_name))
 
-        summary = f"合并完成！共合并 {total} 个 Sheet，{len(all_rows)} 行数据"
+        summary = f"合并完成！共合并 {total} 个 Sheet，{row_count} 行数据"
         self.progress.emit(total, total, summary)
         self.finished.emit(summary)

@@ -4,6 +4,35 @@ from PySide6.QtWidgets import QLabel, QToolButton, QMenu, QLineEdit
 from app.theme import LIGHT_COLORS
 
 
+def set_button_menu(button: QToolButton, menu: QMenu) -> None:
+    """给按钮挂菜单，同时释放旧的菜单。
+
+    QToolButton.setMenu() 不会销毁旧菜单，而旧菜单以按钮为父对象，会一直挂在
+    控件树上；主题切换/换列时反复建菜单就会持续累积。这里先脱离父对象（立刻从
+    控件树消失），再交给事件循环回收。
+    """
+    previous = button.menu()
+    button.setMenu(menu)
+    if previous is not None and previous is not menu:
+        previous.hide()
+        previous.setParent(None)
+        previous.deleteLater()
+
+
+def release_worker(owner) -> None:
+    """释放上一次运行结束的 QThread worker。
+
+    各功能页每执行一次都会 ``self._worker = XWorker(self)``，旧 worker 以页面为
+    父对象，若不回收就会随操作次数累积（线程对象 + 信号连接 + 配置字符串）。
+    """
+    worker = getattr(owner, "_worker", None)
+    if worker is None:
+        return
+    if worker.isFinished():
+        worker.deleteLater()
+        owner._worker = None
+
+
 def get_combo_style(c: dict = None) -> str:
     """下拉框统一样式"""
     if c is None:
@@ -64,7 +93,7 @@ def setup_preset_menu(button: QToolButton, target: QLineEdit, presets: list,
     for label_text, value in presets:
         action = menu.addAction(label_text)
         action.triggered.connect(lambda checked, v=value: target.setText(v))
-    button.setMenu(menu)
+    set_button_menu(button, menu)
 
 
 def section_label(text: str, c: dict = None) -> QLabel:

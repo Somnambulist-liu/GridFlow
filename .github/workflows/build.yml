@@ -57,13 +57,17 @@ jobs:
         run: |
           $name = "GridFlow-$env:APP_VERSION-Windows-$env:ARCH.exe"
           Rename-Item -Path dist\GridFlow.exe -NewName $name
+          $hash = (Get-FileHash "dist\$name" -Algorithm SHA256).Hash.ToLower()
+          # coreutils 风格：<hash>  <文件名>（两个空格），方便 sha256sum -c 校验
+          "$hash  $name" | Out-File -FilePath "dist\$name.sha256" -Encoding ascii -NoNewline
           echo "ARTIFACT_NAME=$name" >> $env:GITHUB_ENV
+          Write-Host "SHA256 dist\$name = $hash"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: GridFlow-${{ env.APP_VERSION }}-Windows-${{ env.ARCH }}
-          path: dist/GridFlow-*.exe
+          path: dist/GridFlow-*
 
   build-linux:
     runs-on: ubuntu-latest
@@ -105,6 +109,8 @@ jobs:
           name="GridFlow-$APP_VERSION-Linux-$ARCH"
           mv dist/GridFlow "dist/$name"
           chmod +x "dist/$name"
+          (cd dist && sha256sum "$name" > "$name.sha256")
+          cat "dist/$name.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -122,46 +128,37 @@ jobs:
           pattern: GridFlow-*
           merge-multiple: true
 
+      - name: Compute SHA256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in GridFlow-*; do
+            case "$f" in *.sha256) continue;; esac
+            sha256sum "$f"
+          done | tee SHA256SUMS.txt
+          echo "---"
+          cat SHA256SUMS.txt
+
+      - name: Assemble release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          # @VERSION@ -> 实际 tag（用 | 作分隔符，tag 里出现 / 也不会出错）
+          sed "s|@VERSION@|${GITHUB_REF_NAME}|g" RELEASE_NOTES.md > release_body.md
+          {
+            echo ""
+            echo "## SHA256 校验值 / Checksums"
+            echo ""
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+          } >> release_body.md
+          echo "BODY_PATH=$PWD/release_body.md" >> "$GITHUB_ENV"
+          head -20 release_body.md
+
       - uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
-          body: |
-            ## 下载 / Downloads
-
-            | 平台 | 文件 |
-            |------|------|
-            | 🪟 Windows | `GridFlow-${{ github.ref_name }}-Windows-x64.exe` |
-            | 🐧 Linux | `GridFlow-${{ github.ref_name }}-Linux-x86_64` |
-
-            ---
-
-            ## 🆕 本版本更新 / What's New
-
-            - **🔄 自动更新** — 支持在线检查更新，一键下载安装（基于 GitHub Releases API）
-            - **✂️ 表格拆分增强** — 支持自定义标题行、前置行和尾部行追加，保留合并单元格
-
-            ---
-
-            ## 功能 / Features
-
-            ### 数据处理
-            - **✂️ 表格拆分** — 按指定字段拆分为独立文件或多个 Sheet，支持自定义标题行、前置行/尾部行追加，保留公式和合并单元格
-            - **🔗 表格合并** — 多文件纵向合并或多 Sheet 合并为单文件
-            - **🧹 数据去重** — 按指定列检测并删除重复行，可选保留首/尾
-            - **🔄 格式转换** — XLSX / CSV 批量互转
-
-            ### 数据分析
-            - **🔍 数据筛选** — 按条件过滤行，支持 11 种运算符、AND/OR 组合
-            - **📋 列操作** — 保留/删除/重命名/重排列序，支持简单计算列
-            - **📊 透视表** — 行/列/值字段交叉聚合，计数/求和/平均/最值
-            - **✅ 数据校验** — 空值检测、异常值(IQR)、类型检查、重复行检测
-
-            ### 系统特性
-            - 🔄 **自动更新** — 启动时自动检查 GitHub Releases，支持忽略版本、一键下载安装替换
-            - 🌓 深色/浅色主题切换
-            - 🌐 中英双语界面
-            - 📂 拖拽导入文件
-            - ⚡ openpyxl 流式读写，低内存占用
-            - 🔒 完全离线，数据不上传
+          body_path: ${{ env.BODY_PATH }}
           files: |
             GridFlow-*

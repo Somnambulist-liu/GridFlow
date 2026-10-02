@@ -1,7 +1,9 @@
 """列操作引擎"""
 import os
-from openpyxl import load_workbook, Workbook
+from openpyxl import load_workbook
 from PySide6.QtCore import QThread, Signal
+
+from core.reader import StreamedWorkbook
 
 
 class ColumnOpsWorker(QThread):
@@ -36,52 +38,66 @@ class ColumnOpsWorker(QThread):
     def run(self):
         try:
             wb = load_workbook(self._file_path, read_only=True)
-            ws = wb[self._sheet_name]
-            rows = list(ws.iter_rows(values_only=True))
-            wb.close()
+            try:
+                ws = wb[self._sheet_name]
+                it = ws.iter_rows(values_only=True)
 
-            headers = list(rows[0]) if rows else []
-            header_index = {h: i for i, h in enumerate(headers)}
+                try:
+                    headers = list(next(it))
+                    header_count = 1
+                except StopIteration:
+                    headers = []
+                    header_count = 0
 
-            # Determine final column order
-            final_cols = self._order if self._order else self._kept_columns
-            final_headers = [self._renames.get(c, c) for c in final_cols]
-            for calc in self._calc_columns:
-                final_headers.append(calc["name"])
+                header_index = {h: i for i, h in enumerate(headers)}
 
-            total_rows = len(rows) - 1
-            out_wb = Workbook()
-            out_ws = out_wb.active
-            out_ws.append(final_headers)
-
-            for row_idx, row in enumerate(rows[1:], 1):
-                if row_idx % 500 == 0:
-                    self.progress.emit(row_idx, total_rows, f"正在处理 {row_idx}/{total_rows} 行...")
-
-                out_row = []
-                for col in final_cols:
-                    if col in header_index:
-                        out_row.append(row[header_index[col]])
-                    else:
-                        out_row.append("")
-
+                # Determine final column order
+                final_cols = self._order if self._order else self._kept_columns
+                final_headers = [self._renames.get(c, c) for c in final_cols]
                 for calc in self._calc_columns:
-                    try:
-                        expr = calc["expression"]
-                        for col in header_index:
-                            expr = expr.replace("{" + col + "}", str(row[header_index[col]] or 0))
-                        result = float(eval(expr))
-                        out_row.append(round(result, 2) if result != int(result) else int(result))
-                    except Exception:
-                        out_row.append("")
+                    final_headers.append(calc["name"])
 
-                out_ws.append(out_row)
+                expected = getattr(ws, "max_row", None)
+                expected = expected - 1 if expected else 0
 
-            output_path = os.path.join(self._output_dir, self._output_name)
-            out_wb.save(output_path)
-            out_wb.close()
+                # 流式处理：逐行转换并直接写入 write_only 工作簿
+                with StreamedWorkbook() as out:
+                    out_ws = out.sheet()
+                    out_ws.append(final_headers)
 
-            self.progress.emit(total_rows, total_rows, "完成")
+                    row_idx = 0
+                    for row in it:
+                        row_idx += 1
+                        if row_idx % 500 == 0:
+                            self.progress.emit(row_idx, expected or row_idx,
+                                               f"正在处理 {row_idx}/{expected or row_idx} 行...")
+
+                        out_row = []
+                        for col in final_cols:
+                            if col in header_index:
+                                out_row.append(row[header_index[col]])
+                            else:
+                                out_row.append("")
+
+                        for calc in self._calc_columns:
+                            try:
+                                expr = calc["expression"]
+                                for col in header_index:
+                                    expr = expr.replace("{" + col + "}", str(row[header_index[col]] or 0))
+                                result = float(eval(expr))
+                                out_row.append(round(result, 2) if result != int(result) else int(result))
+                            except Exception:
+                                out_row.append("")
+
+                        out_ws.append(out_row)
+
+                    total_rows = header_count + row_idx - 1
+                    output_path = os.path.join(self._output_dir, self._output_name)
+                    out.save(output_path)
+            finally:
+                wb.close()
+
+            self.progress.emit(max(total_rows, 0), max(total_rows, 0), "完成")
             self.finished.emit(
                 f"列操作完成！{len(final_headers)} 列 × {total_rows} 行\n输出文件：{os.path.basename(output_path)}"
             )

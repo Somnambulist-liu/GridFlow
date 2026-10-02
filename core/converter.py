@@ -3,6 +3,8 @@ import openpyxl
 import csv
 from PySide6.QtCore import QThread, Signal
 
+from core.reader import StreamedWorkbook
+
 
 class ConvertWorker(QThread):
     progress = Signal(int, int, str)
@@ -63,11 +65,12 @@ class ConvertWorker(QThread):
     def _csv_to_xlsx(self, file_path: str):
         base = os.path.splitext(os.path.basename(file_path))[0]
         out = os.path.join(self.output_dir, f"{base}.xlsx")
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        with open(file_path, "r", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
-            for row in reader:
-                ws.append(row)
-        wb.save(out)
-        wb.close()
+        # write_only：CSV 可以很大，逐行落盘而不是先建满整张表；
+        # 解码中途失败时 StreamedWorkbook 会清掉 openpyxl 的临时文件
+        with StreamedWorkbook() as wb:
+            ws = wb.sheet()
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    ws.append(row)
+            wb.save(out)

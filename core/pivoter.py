@@ -9,6 +9,9 @@ class PivotWorker(QThread):
     finished = Signal(str)
     error_occurred = Signal(str)
 
+    # 累加器下标
+    _COUNT, _SUM, _NUM, _MIN, _MAX = 0, 1, 2, 3, 4
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._file_path = ""
@@ -36,43 +39,72 @@ class PivotWorker(QThread):
     def run(self):
         try:
             wb = load_workbook(self._file_path, read_only=True)
-            ws = wb[self._sheet_name]
-            rows = list(ws.iter_rows(values_only=True))
-            wb.close()
+            try:
+                ws = wb[self._sheet_name]
+                it = ws.iter_rows(values_only=True)
 
-            if len(rows) < 2:
+                try:
+                    headers = list(next(it))
+                except StopIteration:
+                    self.finished.emit("数据不足（至少需要标题行 + 1 行数据）")
+                    return
+                if not headers:
+                    self.finished.emit("数据不足（至少需要标题行 + 1 行数据）")
+                    return
+
+                col_idx = {h: i for i, h in enumerate(headers)}
+
+                # 与旧实现一致：先判“数据不足”，再报字段不存在（缺字段时只计行数）
+                missing = next((f for f in (self._row_field, self._col_field,
+                                            self._value_field) if f not in col_idx), None)
+                row_field_idx = col_idx.get(self._row_field)
+                col_field_idx = col_idx.get(self._col_field)
+                val_idx = col_idx.get(self._value_field)
+
+                # 单趟扫描 + 增量聚合：内存只与“行值 × 列值”组合数相关，
+                # 不再把每一格的值都存进列表（旧实现按值分组缓存全部原始值）。
+                expected = getattr(ws, "max_row", None)
+                expected = expected - 1 if expected else 0
+                stats = {}
+                total = 0
+                for row in it:
+                    total += 1
+                    if total % 1000 == 0:
+                        self.progress.emit(total, expected or total, f"正在汇总 {total} 行...")
+                    if missing is not None:
+                        continue
+                    row_value = row[row_field_idx]
+                    col_value = row[col_field_idx]
+                    rv = str(row_value) if row_value is not None else "(空)"
+                    cv = str(col_value) if col_value is not None else "(空)"
+                    acc = stats.get((rv, cv))
+                    if acc is None:
+                        acc = stats[(rv, cv)] = [0, 0.0, 0, None, None]
+                    acc[self._COUNT] += 1
+                    try:
+                        number = float(row[val_idx])
+                    except (ValueError, TypeError):
+                        continue
+                    acc[self._SUM] += number
+                    acc[self._NUM] += 1
+                    if acc[self._MIN] is None or number < acc[self._MIN]:
+                        acc[self._MIN] = number
+                    if acc[self._MAX] is None or number > acc[self._MAX]:
+                        acc[self._MAX] = number
+            finally:
+                wb.close()
+
+            if total == 0:
                 self.finished.emit("数据不足（至少需要标题行 + 1 行数据）")
                 return
+            if missing is not None:
+                raise ValueError(f"列 '{missing}' 不存在")
 
-            headers = list(rows[0])
-            col_idx = {h: i for i, h in enumerate(headers)}
-
-            for f in [self._row_field, self._col_field, self._value_field]:
-                if f not in col_idx:
-                    raise ValueError(f"列 '{f}' 不存在")
-
-            row_idx = col_idx[self._row_field]
-            col_id = col_idx[self._col_field]
-            val_idx = col_idx[self._value_field]
-
-            # Build pivot dict: {(row_val, col_val): [values]}
-            pivot_data = {}
-            total = len(rows) - 1
-            for i, row in enumerate(rows[1:], 1):
-                if i % 1000 == 0:
-                    self.progress.emit(i, total, f"正在汇总 {i}/{total} 行...")
-                rv = str(row[row_idx]) if row[row_idx] is not None else "(空)"
-                cv = str(row[col_id]) if row[col_id] is not None else "(空)"
-                v = row[val_idx]
-                pivot_data.setdefault((rv, cv), []).append(v)
+            agg_results = {key: self._finalize(acc) for key, acc in stats.items()}
 
             # Compute aggregation
-            row_vals = sorted(set(k[0] for k in pivot_data))
-            col_vals = sorted(set(k[1] for k in pivot_data))
-
-            agg_results = {}
-            for (rv, cv), values in pivot_data.items():
-                agg_results[(rv, cv)] = self._aggregate(values)
+            row_vals = sorted(set(k[0] for k in stats))
+            col_vals = sorted(set(k[1] for k in stats))
 
             # Write cross-tabulation
             output_path = os.path.join(self._output_dir, self._output_name)
@@ -117,7 +149,23 @@ class PivotWorker(QThread):
         except Exception as e:
             self.error_occurred.emit(str(e))
 
+    def _finalize(self, acc: list):
+        """把累加器换算成与旧实现 _aggregate 完全一致的聚合结果。"""
+        count, number_sum, number_count, minimum, maximum = acc
+        if self._agg_func == "count":
+            return count
+        elif self._agg_func == "sum":
+            return round(number_sum, 2)
+        elif self._agg_func == "avg":
+            return round(number_sum / number_count, 2) if number_count else 0
+        elif self._agg_func == "min":
+            return minimum if minimum is not None else 0
+        elif self._agg_func == "max":
+            return maximum if maximum is not None else 0
+        return count
+
     def _aggregate(self, values: list):
+        """保留旧接口：按原始值列表聚合（少量数据或外部调用）。"""
         numeric = []
         for v in values:
             try:

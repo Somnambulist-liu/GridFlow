@@ -13,7 +13,7 @@ from core.reader import get_sheet_names
 from core.merger import MergeWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
-from app.widgets.common import section_label
+from app.widgets.common import release_worker, section_label
 
 
 class MergeFeature(QWidget):
@@ -260,6 +260,7 @@ class MergeFeature(QWidget):
             output_name += ".xlsx"
         self._output_dir = output_dir
 
+        release_worker(self)
         self._worker = MergeWorker(self)
         if self.mode_files.isChecked():
             if len(self._file_paths) < 2:

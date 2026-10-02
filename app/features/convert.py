@@ -11,7 +11,7 @@ from PySide6.QtCore import Signal, Qt
 from core.converter import ConvertWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
-from app.widgets.common import section_label
+from app.widgets.common import release_worker, section_label
 
 
 class ConvertFeature(QWidget):
@@ -182,6 +182,7 @@ class ConvertFeature(QWidget):
         self._output_dir = output_dir
         target = "csv" if self.fmt_xlsx_to_csv.isChecked() else "xlsx"
 
+        release_worker(self)
         self._worker = ConvertWorker(self)
         self._worker.configure(
             file_paths=self._file_paths,

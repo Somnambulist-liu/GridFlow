@@ -16,7 +16,7 @@ from core.splitter import SplitWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
 from app.step_indicator import StepIndicator
-from app.widgets.common import get_combo_style, setup_preset_menu
+from app.widgets.common import get_combo_style, setup_preset_menu, set_button_menu, release_worker
 
 
 class SplitFeature(QWidget):
@@ -168,6 +168,7 @@ class SplitFeature(QWidget):
             )
         else:
             output_path = ""
+        release_worker(self)
         self._worker = SplitWorker(self)
         self._worker.configure(
             file_path=config["file_path"], sheet_name=config["sheet_name"],
@@ -824,7 +825,7 @@ class _Step2Config(QWidget):
             menu.addAction(
                 self._lang.tr("split.field_more_fmt", n=len(sorted_items))
             ).setEnabled(False)
-        self.field_btn.setMenu(menu)
+        set_button_menu(self.field_btn, menu)
         cn = self._current_column or self._lang.tr("split.col_value")
         self.field_btn.setText(self._lang.tr("split.field_btn_fmt", cn=cn, n=len(values)))
 

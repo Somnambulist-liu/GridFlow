@@ -3,6 +3,8 @@ import os
 from openpyxl import load_workbook, Workbook
 from PySide6.QtCore import QThread, Signal
 
+from core.reader import StreamedWorkbook
+
 
 class FilterWorker(QThread):
     progress = Signal(int, int, str)
@@ -30,53 +32,50 @@ class FilterWorker(QThread):
     def run(self):
         try:
             wb = load_workbook(self._file_path, read_only=True)
-            ws = wb[self._sheet_name]
+            try:
+                ws = wb[self._sheet_name]
 
-            headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
-            col_indices = {h: i for i, h in enumerate(headers)}
+                headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+                col_indices = {h: i for i, h in enumerate(headers)}
 
-            # Verify condition columns exist
-            for cond in self._conditions:
-                if cond["column"] not in col_indices:
-                    raise ValueError(f"列 '{cond['column']}' 不存在")
+                # Verify condition columns exist
+                for cond in self._conditions:
+                    if cond["column"] not in col_indices:
+                        raise ValueError(f"列 '{cond['column']}' 不存在")
 
-            # First pass: count matching rows
-            self.progress.emit(0, 0, "正在扫描匹配行...")
-            matching_rows = []
-            total_rows = 0
+                # 单趟扫描：命中的行立即写入 write_only 工作簿，不再缓存全部匹配行
+                self.progress.emit(0, 0, "正在扫描匹配行...")
+                with StreamedWorkbook() as out:
+                    out_ws = out.sheet()
+                    out_ws.append(headers)
 
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                total_rows += 1
-                if total_rows % 1000 == 0:
-                    self.progress.emit(0, total_rows, f"已扫描 {total_rows} 行...")
-                if self._evaluate_row(row, col_indices):
-                    matching_rows.append(row)
+                    total_rows = 0
+                    matched = 0
 
-            wb.close()
+                    for row in ws.iter_rows(min_row=2, values_only=True):
+                        total_rows += 1
+                        if total_rows % 1000 == 0:
+                            self.progress.emit(total_rows, 0,
+                                               f"已扫描 {total_rows} 行，匹配 {matched} 行...")
+                        if self._evaluate_row(row, col_indices):
+                            out_ws.append(list(row))
+                            matched += 1
 
-            if not matching_rows:
-                self.finished.emit("没有匹配的数据行")
-                return
+                    if matched == 0:
+                        # 没有命中就不产出文件，__exit__ 顺手清掉临时文件
+                        self.finished.emit("没有匹配的数据行")
+                        return
 
-            # Write output
-            output_path = os.path.join(self._output_dir, self._output_name)
-            out_wb = Workbook()
-            out_ws = out_wb.active
-            out_ws.append(headers)
-
-            for i, row in enumerate(matching_rows):
-                out_ws.append(list(row))
-                if (i + 1) % 500 == 0:
-                    self.progress.emit(i + 1, len(matching_rows), f"正在写入 {i + 1}/{len(matching_rows)} 行...")
-
-            out_wb.save(output_path)
-            out_wb.close()
+                    output_path = os.path.join(self._output_dir, self._output_name)
+                    out.save(output_path)
+            finally:
+                wb.close()
 
             summary = (
-                f"筛选完成！原始 {total_rows} 行 → 匹配 {len(matching_rows)} 行\n"
+                f"筛选完成！原始 {total_rows} 行 → 匹配 {matched} 行\n"
                 f"输出文件：{os.path.basename(output_path)}"
             )
-            self.progress.emit(len(matching_rows), len(matching_rows), "完成")
+            self.progress.emit(matched, matched, "完成")
             self.finished.emit(summary)
 
         except Exception as e:

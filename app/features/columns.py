@@ -13,7 +13,7 @@ from core.reader import get_sheet_names, get_columns
 from core.column_ops import ColumnOpsWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
-from app.widgets.common import get_combo_style, section_label
+from app.widgets.common import get_combo_style, release_worker, section_label
 
 
 class ColumnsFeature(QWidget):
@@ -317,6 +317,7 @@ class ColumnsFeature(QWidget):
         base = os.path.splitext(os.path.basename(self._file_path))[0]
         output_name = f"{base}_列操作结果.xlsx"
 
+        release_worker(self)
         self._worker = ColumnOpsWorker(self)
         self._worker.configure(
             file_path=self._file_path, sheet_name=sheet,
