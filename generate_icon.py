@@ -7,10 +7,15 @@ BLUE_LIGHT = (96, 165, 250)
 TEAL = (20, 184, 166)
 WHITE = (255, 255, 255)
 
-# 复选框的白色对勾（画大后缩小的抗锯齿做法）
+# 复选框的选中态勾选标记（画大后缩小的抗锯齿做法）
 CHECK_SIZE = 14
 CHECK_SUPERSAMPLE = 8
 CHECK_STROKE = 2.2
+# 勾的颜色跟随主题主色：浅色主题一个资源、深色主题一个资源
+CHECK_ASSETS = {
+    "check.png": (37, 99, 235),        # LIGHT_COLORS["PRIMARY"]
+    "check_dark.png": (59, 130, 246),  # DARK_COLORS["PRIMARY"]
+}
 
 
 def generate_icon(size):
@@ -41,7 +46,7 @@ def generate_icon(size):
 
 
 def generate_check(size=CHECK_SIZE, color=WHITE):
-    """复选框选中态用的对勾：透明底 + 白勾，先超采样再缩小以获得平滑边缘。"""
+    """复选框选中态用的勾：透明底，颜色由主色决定，先超采样再缩小以获得平滑边缘。"""
     scale = CHECK_SUPERSAMPLE
     big = size * scale
     img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
@@ -60,9 +65,9 @@ def main():
     img.save("resources/icon.png", format="PNG")
     print("GridFlow icon saved to resources/icon.ico / icon.png")
 
-    check = generate_check()
-    check.save("resources/check.png", format="PNG")
-    print("Check mark saved to resources/check.png")
+    for name, color in CHECK_ASSETS.items():
+        generate_check(color=color).save(f"resources/{name}", format="PNG")
+        print(f"Check mark saved to resources/{name}")
 
 
 if __name__ == "__main__":

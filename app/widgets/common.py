@@ -22,23 +22,25 @@ class ClickableFrame(QFrame):
 
 def checkbox_style(c: dict, size: int = 15, color_key: str = "TEXT_SECONDARY",
                    font_size: str = "9pt") -> str:
-    """复选框样式（含选中态对勾）。
+    """复选框样式：选中只打勾（勾用主色），不填底色。
 
     功能页里各自写死的 indicator 样式会让“已勾选”只剩一个色块，这里统一走
-    resources/check.png，并保留 hover / disabled / focus 反馈。
+    resources/check*.png，并保留 hover / disabled 反馈。
     """
     from app.resources import qss_url
 
+    tick = qss_url("check.png" if c == LIGHT_COLORS else "check_dark.png")
     return (
         f"QCheckBox {{ color: {c[color_key]}; font-size: {font_size}; spacing: 6px; }} "
         f"QCheckBox:disabled {{ color: {c['TEXT_MUTED']}; }} "
         f"QCheckBox::indicator {{ width: {size}px; height: {size}px; border-radius: 3px; "
         f"border: 1px solid {c['BORDER']}; background-color: {c['BG_INPUT']}; }} "
         f"QCheckBox::indicator:hover {{ border-color: {c['PRIMARY']}; }} "
-        f"QCheckBox::indicator:checked {{ background-color: {c['PRIMARY']}; "
-        f"border-color: {c['PRIMARY']}; image: {qss_url('check.png')}; }} "
+        f"QCheckBox::indicator:checked {{ background-color: {c['BG_INPUT']}; "
+        f"border-color: {c['BORDER']}; image: {tick}; }} "
+        f"QCheckBox::indicator:checked:hover {{ border-color: {c['PRIMARY']}; }} "
         f"QCheckBox::indicator:disabled {{ background-color: {c['BG_MAIN']}; }} "
-        f"QCheckBox::indicator:checked:disabled {{ background-color: {c['TEXT_MUTED']}; "
+        f"QCheckBox::indicator:checked:disabled {{ background-color: {c['BG_MAIN']}; "
         f"border-color: {c['TEXT_MUTED']}; }} "
     )
 

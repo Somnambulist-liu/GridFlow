@@ -1,10 +1,12 @@
 """全局 QSS 样式表"""
 from app.resources import qss_url
+from app.theme import LIGHT_COLORS
 
 
 def build_global_stylesheet(c: dict) -> str:
     """Build the global QSS stylesheet from a color dictionary."""
-    check_icon = qss_url("check.png")
+    # 选中态只用主色画勾，不填底色；勾的颜色随主题（浅/深各一个资源）
+    check_icon = qss_url("check.png" if c == LIGHT_COLORS else "check_dark.png")
     return f"""
 /* ===== 全局 ===== */
 QWidget {{
@@ -103,32 +105,39 @@ QCheckBox::indicator {{
 QCheckBox::indicator:hover {{
     border-color: {c["PRIMARY"]};
 }}
+/* 选中 = 只打勾，不填底色（勾用主色） */
 QCheckBox::indicator:checked {{
-    background-color: {c["PRIMARY"]};
-    border-color: {c["PRIMARY"]};
+    background-color: {c["BG_INPUT"]};
+    border-color: {c["BORDER"]};
     image: {check_icon};
+}}
+QCheckBox::indicator:checked:hover {{
+    border-color: {c["PRIMARY"]};
 }}
 QCheckBox::indicator:disabled {{
     background-color: {c["BG_MAIN"]};
     border-color: {c["BORDER"]};
 }}
 QCheckBox::indicator:checked:disabled {{
-    background-color: {c["TEXT_MUTED"]};
+    background-color: {c["BG_MAIN"]};
     border-color: {c["TEXT_MUTED"]};
 }}
 QRadioButton::indicator {{
     width: 16px;
     height: 16px;
-    border-radius: 9px;
+    border-radius: 8px;
     border: 2px solid {c["BORDER"]};
     background-color: {c["BG_INPUT"]};
 }}
 QRadioButton::indicator:hover {{
     border-color: {c["PRIMARY"]};
 }}
+/* 注意：:checked 里必须重写 border-radius，否则 Qt 会把圆角重置，
+   16px 的指示器会画成“圆角方块”而不是圆点 */
 QRadioButton::indicator:checked {{
-    border: 5px solid {c["PRIMARY"]};
-    background-color: {c["BG_CARD"]};
+    border: 2px solid {c["PRIMARY"]};
+    border-radius: 8px;
+    background-color: {c["PRIMARY"]};
 }}
 QRadioButton::indicator:disabled {{
     border-color: {c["TEXT_MUTED"]};
@@ -200,37 +209,8 @@ QComboBox QAbstractItemView::item:hover {{
     background-color: {"#EFF6FF" if c == LIGHT_COLORS else "#1E3A5F"};
 }}
 
-/* ===== 单选按钮 ===== */
-QRadioButton {{
-    spacing: 6px;
-    color: {c["TEXT_PRIMARY"]};
-}}
-QRadioButton::indicator {{
-    width: 16px;
-    height: 16px;
-    border: 2px solid {c["BORDER"]};
-    border-radius: 10px;
-}}
-QRadioButton::indicator:checked {{
-    border-color: {c["PRIMARY"]};
-    background-color: {c["PRIMARY"]};
-}}
-
-/* ===== 复选框 ===== */
-QCheckBox {{
-    spacing: 6px;
-    color: {c["TEXT_PRIMARY"]};
-}}
-QCheckBox::indicator {{
-    width: 16px;
-    height: 16px;
-    border: 2px solid {c["BORDER"]};
-    border-radius: {c["RADIUS_SM"]}px;
-}}
-QCheckBox::indicator:checked {{
-    border-color: {c["PRIMARY"]};
-    background-color: {c["PRIMARY"]};
-}}
+/* 单选 / 复选框样式统一在上面“复选框 / 单选”一节定义，这里不再重复，
+   否则后面的规则会覆盖掉选中态的勾选反馈 */
 
 /* ===== 进度条 ===== */
 QProgressBar {{
