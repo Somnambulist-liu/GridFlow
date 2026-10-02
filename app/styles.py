@@ -82,9 +82,14 @@ QPushButton:disabled {{
     border-color: {c["BORDER"]};
     background-color: {c["BG_MAIN"]};
 }}
-QToolButton:focus, QCheckBox:focus, QRadioButton:focus {{
+/* 焦点反馈：QCheckBox/QRadioButton 不能加 border——那会把指示器挤变形，
+   改用文字变主色来提示焦点 */
+QToolButton:focus {{
     outline: none;
     border: 1px solid {c["PRIMARY"]};
+}}
+QCheckBox:focus, QRadioButton:focus {{
+    color: {c["PRIMARY"]};
 }}
 
 /* ===== 复选框 / 单选：选中态要有明确反馈（对勾 / 圆点），禁用态明显区分 ===== */
@@ -105,22 +110,19 @@ QCheckBox::indicator {{
 QCheckBox::indicator:hover {{
     border-color: {c["PRIMARY"]};
 }}
-/* 选中 = 只打勾，不填底色（勾用主色） */
+/* 选中 = 只有一个勾：不填底色、也不留边框 */
 QCheckBox::indicator:checked {{
-    background-color: {c["BG_INPUT"]};
-    border-color: {c["BORDER"]};
+    background-color: transparent;
+    border: none;
     image: {check_icon};
-}}
-QCheckBox::indicator:checked:hover {{
-    border-color: {c["PRIMARY"]};
 }}
 QCheckBox::indicator:disabled {{
     background-color: {c["BG_MAIN"]};
     border-color: {c["BORDER"]};
 }}
 QCheckBox::indicator:checked:disabled {{
-    background-color: {c["BG_MAIN"]};
-    border-color: {c["TEXT_MUTED"]};
+    background-color: transparent;
+    border: none;
 }}
 QRadioButton::indicator {{
     width: 16px;

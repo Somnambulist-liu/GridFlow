@@ -36,12 +36,11 @@ def checkbox_style(c: dict, size: int = 15, color_key: str = "TEXT_SECONDARY",
         f"QCheckBox::indicator {{ width: {size}px; height: {size}px; border-radius: 3px; "
         f"border: 1px solid {c['BORDER']}; background-color: {c['BG_INPUT']}; }} "
         f"QCheckBox::indicator:hover {{ border-color: {c['PRIMARY']}; }} "
-        f"QCheckBox::indicator:checked {{ background-color: {c['BG_INPUT']}; "
-        f"border-color: {c['BORDER']}; image: {tick}; }} "
-        f"QCheckBox::indicator:checked:hover {{ border-color: {c['PRIMARY']}; }} "
+        f"QCheckBox::indicator:checked {{ background-color: transparent; "
+        f"border: none; image: {tick}; }} "
         f"QCheckBox::indicator:disabled {{ background-color: {c['BG_MAIN']}; }} "
-        f"QCheckBox::indicator:checked:disabled {{ background-color: {c['BG_MAIN']}; "
-        f"border-color: {c['TEXT_MUTED']}; }} "
+        f"QCheckBox::indicator:checked:disabled {{ background-color: transparent; "
+        f"border: none; }} "
     )
 
 
