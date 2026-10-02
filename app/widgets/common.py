@@ -1,7 +1,23 @@
 """共享 UI 组件与样式"""
-from PySide6.QtWidgets import QLabel, QToolButton, QMenu, QLineEdit
+from PySide6.QtWidgets import QLabel, QToolButton, QMenu, QLineEdit, QFrame
+from PySide6.QtCore import Signal, Qt
 
 from app.theme import LIGHT_COLORS
+
+
+class ClickableFrame(QFrame):
+    """整块可点击的卡片/拖拽区（QFrame 本身没有 clicked 信号）。"""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
 
 
 def set_button_menu(button: QToolButton, menu: QMenu) -> None:
@@ -39,7 +55,7 @@ def get_combo_style(c: dict = None) -> str:
         c = LIGHT_COLORS
     return (
         "QComboBox {"
-        f"  background-color: {'#FFFFFF' if c == LIGHT_COLORS else '#334155'};"
+        f"  background-color: {c['BG_CARD'] if c == LIGHT_COLORS else c['BG_INPUT']};"
         f"  border: 1px solid {c['BORDER']};"
         f"  border-radius: {c['RADIUS_SM']}px;"
         f"  padding: 6px 10px;"
@@ -53,11 +69,11 @@ def get_combo_style(c: dict = None) -> str:
         "  padding-right: 6px;"
         "}"
         "QComboBox QAbstractItemView {"
-        f"  background-color: {'#FFFFFF' if c == LIGHT_COLORS else '#1E293B'};"
+        f"  background-color: {c['BG_CARD']};"
         f"  border: 1px solid {c['BORDER']};"
         "  border-radius: 4px;"
         f"  color: {c['TEXT_PRIMARY']};"
-        "  selection-background-color: #DBEAFE;"
+        f"  selection-background-color: {c['PRIMARY_LIGHT']};"
         f"  selection-color: {c['TEXT_PRIMARY']};"
         "  outline: none;"
         "  padding: 2px;"
@@ -67,7 +83,7 @@ def get_combo_style(c: dict = None) -> str:
         "  min-height: 24px;"
         "}"
         "QComboBox QAbstractItemView::item:hover {"
-        "  background-color: #EFF6FF;"
+        f"  background-color: {c['PRIMARY_LIGHT_HOVER']};"
         "}"
     )
 

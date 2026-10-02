@@ -16,7 +16,9 @@ from core.splitter import SplitWorker
 from app.theme_manager import ThemeManager
 from app.i18n import LangManager
 from app.step_indicator import StepIndicator
-from app.widgets.common import get_combo_style, setup_preset_menu, set_button_menu, release_worker
+from app.widgets.common import (
+    get_combo_style, setup_preset_menu, set_button_menu, release_worker, ClickableFrame,
+)
 
 
 class SplitFeature(QWidget):
@@ -87,7 +89,7 @@ class SplitFeature(QWidget):
         return (
             f"QPushButton {{ background-color: transparent; color: {c['TEXT_SECONDARY']}; "
             f"border: 1px solid {c['BORDER']}; border-radius: {c['RADIUS_SM']}px; padding: 8px 20px; font-size: 11pt; }} "
-            f"QPushButton:hover {{ color: #1E293B; border-color: {c['TEXT_MUTED']}; }}"
+            f"QPushButton:hover {{ color: {c['TEXT_PRIMARY']}; border-color: {c['TEXT_MUTED']}; }}"
         )
 
     def _on_theme_changed(self, _theme_name: str):
@@ -222,10 +224,6 @@ class _Step1File(QWidget):
         hero = QVBoxLayout()
         hero.setAlignment(Qt.AlignCenter)
         hero.setSpacing(8)
-        icon_label = QLabel("\U0001F4E5")
-        icon_label.setStyleSheet("font-size: 48px;")
-        icon_label.setAlignment(Qt.AlignCenter)
-        hero.addWidget(icon_label)
         self._hero_title = QLabel()
         self._hero_title.setAlignment(Qt.AlignCenter)
         hero.addWidget(self._hero_title)
@@ -233,20 +231,23 @@ class _Step1File(QWidget):
         self._hero_sub.setAlignment(Qt.AlignCenter)
         hero.addWidget(self._hero_sub)
         layout.addLayout(hero)
-        layout.addSpacing(20)
+        layout.addSpacing(12)
 
-        self.drop_zone = QFrame()
+        # 拖拽区整块可点：点击等同于“浏览选择文件”，与拖拽共用一个入口
+        self.drop_zone = ClickableFrame()
         self.drop_zone.setObjectName("dropZone")
-        self.drop_zone.setFixedHeight(120)
+        self.drop_zone.setFixedHeight(128)
+        self.drop_zone.clicked.connect(self._browse_file)
         dz_layout = QVBoxLayout(self.drop_zone)
         dz_layout.setAlignment(Qt.AlignCenter)
         dz_layout.setSpacing(8)
         dz_icon = QLabel("\U0001F4C1")
-        dz_icon.setStyleSheet("font-size: 36px;")
+        dz_icon.setStyleSheet("font-size: 36px; background: transparent;")
         dz_icon.setAlignment(Qt.AlignCenter)
         dz_layout.addWidget(dz_icon)
         self._dz_text = QLabel()
         self._dz_text.setAlignment(Qt.AlignCenter)
+        self._dz_text.setStyleSheet("background: transparent;")
         dz_layout.addWidget(self._dz_text)
         layout.addWidget(self.drop_zone)
 
@@ -292,11 +293,13 @@ class _Step1File(QWidget):
         c = self._theme.current_colors
         self._hero_title.setStyleSheet(f"font-size: 14pt; font-weight: bold; color: {c['TEXT_PRIMARY']};")
         self._hero_sub.setStyleSheet(f"font-size: 10pt; color: {c['TEXT_MUTED']};")
-        self._dz_text.setStyleSheet(f"font-size: 10pt; color: {c['TEXT_MUTED']};")
+        self._dz_text.setStyleSheet(f"font-size: 10pt; color: {c['TEXT_MUTED']}; background: transparent;")
+        self.drop_zone.setToolTip(self._lang.tr("split.drop_hint"))
         self.browse_btn.setStyleSheet(
             f"QPushButton {{ background-color: {c['PRIMARY']}; color: white; border: none; "
             f"border-radius: {c['RADIUS_SM']}px; padding: 8px 24px; font-size: 11pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: {c['PRIMARY_HOVER']}; }}"
+            f"QPushButton:hover {{ background-color: {c['PRIMARY_HOVER']}; }} "
+            f"QPushButton:focus {{ border: 2px solid {c['PRIMARY_HOVER']}; }}"
         )
 
     def _browse_file(self):
@@ -644,7 +647,7 @@ class _Step2Config(QWidget):
         self.field_btn.setStyleSheet(
             f"QToolButton {{ background-color: {c['PRIMARY_LIGHT']}; color: {c['PRIMARY']}; "
             f"padding: 4px 10px; border-radius: 4px; font-weight: bold; border: none; }} "
-            f"QToolButton:hover {{ background-color: #BFDBFE; }} "
+            f"QToolButton:hover {{ background-color: {c['PRIMARY_LIGHT_HOVER']}; }} "
             "QToolButton::menu-indicator { image: none; }"
         )
         self._p_btn.setStyleSheet(
@@ -1011,7 +1014,7 @@ class _Step3Execute(QWidget):
         self.open_dir_btn.setStyleSheet(
             f"QPushButton {{ background-color: {c['SUCCESS']}; color: white; border: none; "
             f"border-radius: {c['RADIUS_SM']}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: #15803D; }}"
+            f"QPushButton:hover {{ background-color: {c['SUCCESS_HOVER']}; }}"
         )
 
     def _on_start(self):

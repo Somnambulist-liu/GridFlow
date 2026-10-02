@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QStackedWidget, QPushButton, QApplication, QLabel, QDialog,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 
 from app.theme_manager import ThemeManager
 from app.styles import build_global_stylesheet
@@ -39,16 +39,63 @@ class MainWindow(QMainWindow):
         self._active_feature = None
         self._feature_factories = {}   # feature_id -> 构造该页面的工厂
         self._feature_widgets = {}     # feature_id -> 已创建的页面
+        self._feature_order = []       # 注册顺序，用于 Ctrl+1..8
 
         self._setup_ui()
         self._connect_signals()
+        self._setup_shortcuts()
 
         # Auto-check for updates 3 seconds after startup
         QTimer.singleShot(3000, self._startup_check)
 
+    # ── 快捷键 ──────────────────────────────────────────
+
+    # 各功能页“选择文件”按钮的属性名（用于 Ctrl+O 转发）
+    BROWSE_BUTTON_ATTRS = ("browse_btn", "add_files_btn", "add_btn", "file_btn", "sheet_file_btn")
+
+    def _setup_shortcuts(self):
+        QShortcut(QKeySequence("Ctrl+,"), self, activated=self._on_settings_clicked)
+        QShortcut(QKeySequence("Ctrl+H"), self, activated=self._go_home)
+        QShortcut(QKeySequence("Escape"), self, activated=self._go_home)
+        QShortcut(QKeySequence("Ctrl+O"), self, activated=self._open_file_shortcut)
+        for index in range(9):
+            QShortcut(QKeySequence(f"Ctrl+{index + 1}"), self,
+                      activated=lambda i=index: self._open_feature_by_index(i))
+
+    def _open_feature_by_index(self, index: int):
+        if 0 <= index < len(self._feature_order):
+            self._on_feature_selected(self._feature_order[index])
+
+    def _open_file_shortcut(self):
+        """Ctrl+O：转发给当前功能页上的“选择文件”按钮。"""
+        widget = self._feature_widgets.get(self._active_feature)
+        if widget is None:
+            return
+        targets = [widget, getattr(widget, "step1", None)]
+        for target in targets:
+            if target is None:
+                continue
+            for attr in self.BROWSE_BUTTON_ATTRS:
+                button = getattr(target, attr, None)
+                if isinstance(button, QPushButton) and button.isEnabled() and button.isVisible():
+                    button.click()
+                    return
+
     def _apply_global_theme(self):
         c = self._theme.current_colors
         QApplication.instance().setStyleSheet(build_global_stylesheet(c))
+
+    def _header_btn_style(self, c, font_size: str = "10pt") -> str:
+        """header 上三个图标按钮统一尺寸、边框与焦点态。"""
+        return (
+            f"QPushButton {{ background-color: transparent; color: {c['TEXT_PRIMARY']}; "
+            f"border: 1px solid {c['BORDER']}; border-radius: {c['RADIUS_SM']}px; "
+            f"padding: 3px 12px; font-size: {font_size}; }} "
+            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; color: {c['PRIMARY']}; }} "
+            f"QPushButton:pressed {{ background-color: {c['PRIMARY_LIGHT']}; }} "
+            f"QPushButton:focus {{ border: 2px solid {c['PRIMARY']}; }} "
+            f"QPushButton:disabled {{ color: {c['TEXT_MUTED']}; }}"
+        )
 
     def _refresh_header(self):
         c = self._theme.current_colors
@@ -61,28 +108,29 @@ class MainWindow(QMainWindow):
             f"QPushButton {{ background-color: transparent; color: {c['PRIMARY']}; "
             f"border: 1px solid {c['PRIMARY']}; border-radius: {c['RADIUS_SM']}px; "
             f"padding: 4px 16px; font-size: 10pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: {c['PRIMARY']}; color: white; }}"
+            f"QPushButton:hover {{ background-color: {c['PRIMARY']}; color: white; }} "
+            f"QPushButton:focus {{ border: 2px solid {c['PRIMARY_HOVER']}; }}"
         )
 
         self.title_label.setText(self._lang.tr("app.title"))
         self.title_label.setStyleSheet(
             f"font-size: 12pt; font-weight: bold; color: {c['TEXT_PRIMARY']};"
         )
+        # 版本号放在标题旁（以前 header 里这个标签是空的、版本另占底部一行）
+        self.version_label.setText(self._lang.tr("app.version"))
         self.version_label.setStyleSheet(
-            f"font-size: 9pt; color: {c['TEXT_MUTED']};"
+            f"font-size: 9pt; color: {c['TEXT_MUTED']}; padding-top: 3px;"
         )
         self.subtitle_label.setText(self._lang.tr("app.subtitle"))
         self.subtitle_label.setStyleSheet(
             f"font-size: 9pt; color: {c['TEXT_MUTED']};"
         )
 
+        btn_style = self._header_btn_style(c)
         self.settings_btn.setText(self._lang.tr("btn.settings"))
-        self.settings_btn.setStyleSheet(
-            f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
-            f"border-radius: {c['RADIUS_SM']}px; padding: 4px 10px; font-size: 12pt; }} "
-            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; }}"
-        )
+        self.settings_btn.setStyleSheet(btn_style)
 
+        # 按钮上显示“当前”主题，图标与文字一致（以前浅色配月亮图标，容易读反）
         theme_labels = {
             "light": self._lang.tr("theme.light"),
             "dark": self._lang.tr("theme.dark"),
@@ -90,19 +138,11 @@ class MainWindow(QMainWindow):
         }
         self.theme_btn.setText(theme_labels.get(self._theme.theme, self._lang.tr("theme.light")))
         self.theme_btn.setToolTip(self._lang.tr("theme.tooltip"))
-        self.theme_btn.setStyleSheet(
-            f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
-            f"border-radius: {c['RADIUS_SM']}px; padding: 4px 14px; font-size: 10pt; }} "
-            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; }}"
-        )
+        self.theme_btn.setStyleSheet(btn_style)
 
+        self.update_btn.setText("\U0001F504")
         self.update_btn.setToolTip(self._lang.tr("update.check_now"))
-        self.update_btn.setStyleSheet(
-            f"QPushButton {{ background-color: transparent; border: 1px solid {c['BORDER']}; "
-            f"border-radius: {c['RADIUS_SM']}px; padding: 4px 10px; font-size: 12pt; }} "
-            f"QPushButton:hover {{ border-color: {c['PRIMARY']}; }} "
-            f"QPushButton:disabled {{ color: {c['TEXT_MUTED']}; }}"
-        )
+        self.update_btn.setStyleSheet(self._header_btn_style(c, font_size="11pt"))
 
     def _on_theme_changed(self, _theme_name: str):
         self._apply_global_theme()
@@ -150,16 +190,20 @@ class MainWindow(QMainWindow):
 
         self.settings_btn = QPushButton()
         self.settings_btn.setToolTip(self._lang.tr("btn.settings.tooltip"))
+        self.settings_btn.setFixedHeight(30)
         self.settings_btn.clicked.connect(self._on_settings_clicked)
         header_layout.addWidget(self.settings_btn)
 
         self.theme_btn = QPushButton()
         self.theme_btn.setToolTip(self._lang.tr("theme.tooltip"))
+        self.theme_btn.setFixedHeight(30)
         self.theme_btn.clicked.connect(self._theme.toggle)
         header_layout.addWidget(self.theme_btn)
 
         self.update_btn = QPushButton("\U0001F504")
         self.update_btn.setToolTip(self._lang.tr("update.check_now"))
+        self.update_btn.setFixedHeight(30)
+        self.update_btn.setFixedWidth(36)
         self.update_btn.clicked.connect(lambda: self._check_updates())
         header_layout.addWidget(self.update_btn)
 
@@ -185,6 +229,8 @@ class MainWindow(QMainWindow):
         ``factory`` 可以是构造页面的可调用对象（惰性创建，首次进入才建 UI），
         也可以直接传一个已创建好的 QWidget（兼容旧调用方式）。
         """
+        if feature_id not in self._feature_order:
+            self._feature_order.append(feature_id)
         if isinstance(factory, QWidget):
             self._feature_widgets[feature_id] = factory
             self.stack.addWidget(factory)

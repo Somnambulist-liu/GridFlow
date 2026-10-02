@@ -21,10 +21,10 @@ ZH_CN = {
     "btn.cancel": "取消",
 
     # Theme
-    "theme.light": "🌙  浅色",
-    "theme.dark": "☀️  深色",
+    "theme.light": "☀️  浅色",
+    "theme.dark": "🌙  深色",
     "theme.auto": "🖥️  自动",
-    "theme.tooltip": "切换深色/浅色模式",
+    "theme.tooltip": "切换主题（浅色 / 深色 / 自动）",
 
     # Home page — groups
     "home.group.data": "数据处理",
@@ -32,6 +32,7 @@ ZH_CN = {
 
     # Home page — warning
     "home.warning": "⚠️ 注意事项：除了表格拆分功能，其他功能目前还有小BUG存在，请谨慎使用！",
+    "home.warning.dismiss": "不再显示这条提示",
 
     # Home page — cards
     "card.split": "表格拆分",
@@ -73,7 +74,7 @@ ZH_CN = {
     "split.step_next": "下一步  →",
     "split.hero_title": "选择要拆分的 Excel 文件",
     "split.hero_sub": "支持 .xlsx / .xls 格式，可拖拽文件到此处",
-    "split.drop_hint": "拖拽 Excel 文件到此处",
+    "split.drop_hint": "点击选择，或把 Excel 文件拖到这里",
     "split.browse_btn": "浏览选择文件",
     "split.file_loaded": "✅ 已加载：{name}（共 {count} 个 Sheet）",
     "split.file_error": "❌ 无法读取文件：{error}",
@@ -288,14 +289,15 @@ EN_US = {
     "btn.save": "Save",
     "btn.cancel": "Cancel",
 
-    "theme.light": "🌙  Light",
-    "theme.dark": "☀️  Dark",
+    "theme.light": "☀️  Light",
+    "theme.dark": "🌙  Dark",
     "theme.auto": "🖥️  Auto",
-    "theme.tooltip": "Toggle dark/light mode",
+    "theme.tooltip": "Switch theme (light / dark / auto)",
 
     "home.group.data": "Data Processing",
     "home.group.analysis": "Data Analysis",
     "home.warning": "⚠️ Note: Except for Table Split, other features may have minor bugs. Please use with caution!",
+    "home.warning.dismiss": "Hide this notice",
 
     "card.split": "Table Split",
     "card.split.desc": "Split by fields into separate files or sheets",
@@ -334,7 +336,7 @@ EN_US = {
     "split.step_next": "Next  →",
     "split.hero_title": "Select an Excel file to split",
     "split.hero_sub": "Supports .xlsx / .xls. Drag & drop files here.",
-    "split.drop_hint": "Drop Excel file here",
+    "split.drop_hint": "Click to choose, or drop an Excel file here",
     "split.browse_btn": "Browse File",
     "split.file_loaded": "✅ Loaded: {name} ({count} sheet(s))",
     "split.file_error": "❌ Cannot read file: {error}",

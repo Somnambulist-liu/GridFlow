@@ -85,7 +85,7 @@ class ColumnsFeature(QWidget):
         self.open_dir_btn.setStyleSheet(
             f"QPushButton {{ background-color: {c['SUCCESS']}; color: white; border: none; "
             f"border-radius: {c['RADIUS_SM']}px; padding: 10px 28px; font-size: 11pt; font-weight: bold; }} "
-            f"QPushButton:hover {{ background-color: #15803D; }}"
+            f"QPushButton:hover {{ background-color: {c['SUCCESS_HOVER']}; }}"
         )
         self.add_calc_btn.setStyleSheet(
             f"QPushButton {{ background-color: {c['BG_CARD']}; border: 1px solid {c['BORDER']}; "
@@ -354,7 +354,8 @@ class ColumnsFeature(QWidget):
         self.start_btn.setEnabled(True)
         self.start_btn.setText(self._lang.tr("columns.start"))
         self.status_label.setText(self._lang.tr("columns.error_failed", error=error_msg))
-        self.status_label.setStyleSheet("color: #DC2626; font-size: 10pt; font-weight: bold;")
+        c = self._theme.current_colors
+        self.status_label.setStyleSheet(f"color: {c['DANGER']}; font-size: 10pt; font-weight: bold;")
         self.progress_bar.setVisible(False)
 
     def _open_output_dir(self):

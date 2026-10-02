@@ -39,6 +39,13 @@ QPushButton:hover {{
 QPushButton:pressed {{
     background-color: {c["PRIMARY_LIGHT"]};
 }}
+QPushButton:focus {{
+    border: 2px solid {c["PRIMARY"]};
+}}
+QToolButton:focus, QCheckBox:focus, QRadioButton:focus {{
+    outline: none;
+    border: 1px solid {c["PRIMARY"]};
+}}
 
 QPushButton#primaryBtn {{
     background-color: {c["PRIMARY"]};
@@ -53,7 +60,7 @@ QPushButton#primaryBtn:hover {{
     background-color: {c["PRIMARY_HOVER"]};
 }}
 QPushButton#primaryBtn:pressed {{
-    background-color: #1E40AF;
+    background-color: {c["PRIMARY_ACTIVE"]};
 }}
 QPushButton#primaryBtn:disabled {{
     background-color: {c["TEXT_MUTED"]};
@@ -67,7 +74,7 @@ QPushButton#successBtn {{
     border-radius: {c["RADIUS_SM"]}px;
 }}
 QPushButton#successBtn:hover {{
-    background-color: #15803D;
+    background-color: {c["SUCCESS_HOVER"]};
 }}
 
 /* ===== 输入框 ===== */
@@ -81,7 +88,7 @@ QLineEdit, QComboBox, QSpinBox {{
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{
     border-color: {c["BORDER_FOCUS"]};
-    background-color: {"#FFFFFF" if c == LIGHT_COLORS else "#334155"};
+    background-color: {c["BG_CARD"] if c == LIGHT_COLORS else c["BG_INPUT"]};
 }}
 QComboBox::drop-down {{
     border: none;
