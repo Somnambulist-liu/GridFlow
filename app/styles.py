@@ -128,22 +128,25 @@ QRadioButton::indicator {{
     width: 16px;
     height: 16px;
     border-radius: 8px;
-    border: 2px solid {c["BORDER"]};
+    border: 1px solid {c["BORDER"]};
     background-color: {c["BG_INPUT"]};
 }}
 QRadioButton::indicator:hover {{
     border-color: {c["PRIMARY"]};
 }}
-/* 注意：:checked 里必须重写 border-radius，否则 Qt 会把圆角重置，
-   16px 的指示器会画成“圆角方块”而不是圆点 */
+/* 与复选框一致：选中只留一个勾 */
 QRadioButton::indicator:checked {{
-    border: 2px solid {c["PRIMARY"]};
-    border-radius: 8px;
-    background-color: {c["PRIMARY"]};
+    background-color: transparent;
+    border: none;
+    image: {check_icon};
 }}
 QRadioButton::indicator:disabled {{
-    border-color: {c["TEXT_MUTED"]};
     background-color: {c["BG_MAIN"]};
+    border-color: {c["BORDER"]};
+}}
+QRadioButton::indicator:checked:disabled {{
+    background-color: transparent;
+    border: none;
 }}
 
 QPushButton#primaryBtn {{
