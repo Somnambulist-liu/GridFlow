@@ -18,6 +18,7 @@ from app.i18n import LangManager
 from app.step_indicator import StepIndicator
 from app.widgets.common import (
     get_combo_style, setup_preset_menu, set_button_menu, release_worker, ClickableFrame,
+    checkbox_style,
 )
 
 
@@ -600,21 +601,12 @@ class _Step2Config(QWidget):
             f"font-size: 9pt; font-weight: bold; color: {c['TEXT_SECONDARY']}; margin-bottom: 2px;")
         self.naming_title.setStyleSheet(
             f"font-size: 9pt; font-weight: bold; color: {c['TEXT_SECONDARY']}; margin-bottom: 2px;")
-        self.formula_check.setStyleSheet(
-            f"QCheckBox {{ color: {c['TEXT_SECONDARY']}; font-size: 9pt; spacing: 6px; }} "
-            f"QCheckBox::indicator {{ width: 14px; height: 14px; border-radius: 3px; border: 1px solid {c['BORDER']}; }} "
-            f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; background-color: {c['PRIMARY']}; }}"
-        )
+        self.formula_check.setStyleSheet(checkbox_style(c, size=15))
         self._header_row_label.setStyleSheet(
             f"font-size: 9pt; font-weight: bold; color: {c['TEXT_SECONDARY']}; margin-bottom: 2px;")
         self._header_row_hint.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")
 
-        checkbox_st = (
-            f"QCheckBox {{ color: {c['TEXT_SECONDARY']}; font-size: 9pt; spacing: 6px; }} "
-            f"QCheckBox::indicator {{ width: 14px; height: 14px; border-radius: 3px; border: 1px solid {c['BORDER']}; }} "
-            f"QCheckBox::indicator:checked {{ border-color: {c['PRIMARY']}; background-color: {c['PRIMARY']}; }} "
-            f"QCheckBox::indicator:disabled {{ background-color: {c['BG_MAIN']}; }}"
-        )
+        checkbox_st = checkbox_style(c, size=15)
         self.lead_check.setStyleSheet(checkbox_st)
         self.tail_check.setStyleSheet(checkbox_st)
         self.lead_preview.setStyleSheet(f"font-size: 8pt; color: {c['TEXT_MUTED']};")

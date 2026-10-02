@@ -12,6 +12,7 @@ from app.styles import build_global_stylesheet
 from app.home_page import HomePage
 from app.pipeline import PipelineContext
 from app.i18n import LangManager, APP_VERSION
+from app.resources import icon_path
 # app.updater / app.settings_dialog 只在真正需要时才导入（自动更新、设置弹窗），
 # 它们会把 http.client、subprocess 等模块拖进启动路径。
 
@@ -24,11 +25,9 @@ class MainWindow(QMainWindow):
         self._lang = LangManager.instance()
         self.pipeline = PipelineContext(self)
 
-        base = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
-        icon_ext = "ico" if sys.platform == "win32" else "png"
-        icon_path = os.path.join(base, "resources", f"icon.{icon_ext}")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+        icon = icon_path()
+        if os.path.exists(icon):
+            self.setWindowIcon(QIcon(icon))
         self.setMinimumSize(680, 700)
         self.resize(780, 760)
 
@@ -284,13 +283,20 @@ class MainWindow(QMainWindow):
             lambda msg: self._on_check_error(msg, status_label))
         self._checker.start()
 
+    def _set_status_safely(self, status_label, text: str):
+        """把检查结果回填到设置对话框；对话框可能已经被关闭。"""
+        if not status_label:
+            return False
+        try:
+            status_label.set_check_status(text)
+            return True
+        except RuntimeError:          # 底层 C++ 对象已销毁
+            return False
+
     def _on_up_to_date(self, status_label=None):
         from app.updater import set_last_check_time
 
-        if status_label:
-            from app.settings_dialog import SettingsDialog
-            if isinstance(status_label, SettingsDialog):
-                status_label.set_check_status(self._lang.tr("update.up_to_date"))
+        self._set_status_safely(status_label, self._lang.tr("update.up_to_date"))
         # Record check time for cache
         set_last_check_time()
 
@@ -299,64 +305,24 @@ class MainWindow(QMainWindow):
         from app.updater import set_last_check_time, UpdateDialog
 
         set_last_check_time()
-        if status_label:
-            from app.settings_dialog import SettingsDialog
-            if isinstance(status_label, SettingsDialog):
-                status_label.set_check_status(
-                    f"{self._lang.tr('update.latest')}: {info['version']}")
+        self._set_status_safely(
+            status_label, f"{self._lang.tr('update.latest')}: {info['version']}")
         # Skip if this version was ignored
         ignored = get_ignored_version()
         if ignored and ignored == info["version"]:
             return
-        # Show dialog
-        dlg = UpdateDialog(info, APP_VERSION, self._lang, self)
-        if dlg.exec() == QDialog.Accepted:
-            self._download_update(info)
+        # 下载与安装都由对话框自己接管（发现新版本 → 下载中 → 准备安装）
+        dialog = UpdateDialog(info, APP_VERSION, self._lang, self)
+        dialog.exec()
 
     def _on_check_error(self, msg: str, status_label=None):
         if msg == "not frozen":
             display = self._lang.tr("update.frozen_required")
         else:
             display = f"{self._lang.tr('update.error')}: {msg}"
-        if status_label:
-            from app.settings_dialog import SettingsDialog
-            if isinstance(status_label, SettingsDialog):
-                status_label.set_check_status(display)
-        else:
+        if not self._set_status_safely(status_label, display):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, self._lang.tr("update.check_now"), display)
-
-    def _download_update(self, info: dict):
-        from app.updater import UpdateDownloader, apply_update_and_restart
-
-        self._downloader = UpdateDownloader(info["download_url"], info.get("size", 0), self)
-        # Show a simple progress bar dialog
-        from PySide6.QtWidgets import QProgressDialog
-        progress = QProgressDialog(
-            self._lang.tr("update.downloading"), "", 0, 100, self)
-        progress.setWindowTitle(self._lang.tr("update.download"))
-        progress.setMinimumDuration(0)
-        progress.setValue(0)
-        progress.setCancelButton(None)
-        progress.setModal(True)
-        progress.show()
-
-        def on_progress(cur, total):
-            if total > 0:
-                progress.setMaximum(total)
-                progress.setValue(cur)
-
-        def on_finished(path):
-            progress.close()
-            apply_update_and_restart(path)
-
-        def on_error(msg):
-            progress.close()
-
-        self._downloader.progress.connect(on_progress)
-        self._downloader.finished.connect(on_finished)
-        self._downloader.error_occurred.connect(on_error)
-        self._downloader.start()
 
     # ── Startup auto‑check ──────────────────────────────
 

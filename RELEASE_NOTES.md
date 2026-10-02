@@ -1,9 +1,3 @@
-<!--
-  发布说明模板：由 .github/workflows/build.yml 的 create-release 任务读取，
-  把 @VERSION@ 替换成当前 tag 后追加 SHA256 校验值，作为 GitHub Release 正文。
-  修改这个文件即可调整发布页内容，不需要改 workflow。
--->
-
 # GridFlow @VERSION@
 
 表格数据流式处理工具箱 —— 轻量、快速、离线可用。

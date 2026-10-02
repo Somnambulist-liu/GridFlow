@@ -1,8 +1,10 @@
 """全局 QSS 样式表"""
+from app.resources import qss_url
 
 
 def build_global_stylesheet(c: dict) -> str:
     """Build the global QSS stylesheet from a color dictionary."""
+    check_icon = qss_url("check.png")
     return f"""
 /* ===== 全局 ===== */
 QWidget {{
@@ -15,12 +17,42 @@ QMainWindow {{
     background-color: {c["BG_MAIN"]};
 }}
 
+/* 对话框/弹窗也走主题：以前只定义了 QMainWindow 背景，暗色下 QDialog 仍是系统亮色，
+   配合全局浅色文字会变成"白底浅字"（更新对话框、下载进度框就是这样） */
+QDialog, QMessageBox, QProgressDialog {{
+    background-color: {c["BG_CARD"]};
+    color: {c["TEXT_PRIMARY"]};
+}}
+
+QDialog QLabel, QProgressDialog QLabel {{
+    color: {c["TEXT_PRIMARY"]};
+    background: transparent;
+}}
+
+/* 文本域/说明区 */
+QTextEdit, QTextBrowser, QPlainTextEdit {{
+    background-color: {c["BG_INPUT"]};
+    color: {c["TEXT_PRIMARY"]};
+    border: 1px solid {c["BORDER"]};
+    border-radius: {c["RADIUS_SM"]}px;
+    padding: 6px 8px;
+    selection-background-color: {c["PRIMARY_LIGHT"]};
+    selection-color: {c["TEXT_PRIMARY"]};
+}}
+
 /* ===== 卡片容器 ===== */
 QFrame#card {{
     background-color: {c["BG_CARD"]};
     border: 1px solid {c["BORDER"]};
     border-radius: {c["RADIUS_MD"]}px;
     padding: 12px;
+}}
+
+/* 设置对话框里的分组卡片 */
+QFrame#settingsCard {{
+    background-color: {c["BG_MAIN"]};
+    border: 1px solid {c["BORDER"]};
+    border-radius: {c["RADIUS_MD"]}px;
 }}
 
 /* ===== 按钮 ===== */
@@ -38,13 +70,69 @@ QPushButton:hover {{
 }}
 QPushButton:pressed {{
     background-color: {c["PRIMARY_LIGHT"]};
+    border-color: {c["PRIMARY"]};
 }}
 QPushButton:focus {{
     border: 2px solid {c["PRIMARY"]};
 }}
+QPushButton:disabled {{
+    color: {c["TEXT_MUTED"]};
+    border-color: {c["BORDER"]};
+    background-color: {c["BG_MAIN"]};
+}}
 QToolButton:focus, QCheckBox:focus, QRadioButton:focus {{
     outline: none;
     border: 1px solid {c["PRIMARY"]};
+}}
+
+/* ===== 复选框 / 单选：选中态要有明确反馈（对勾 / 圆点），禁用态明显区分 ===== */
+QCheckBox, QRadioButton {{
+    color: {c["TEXT_PRIMARY"]};
+    spacing: 8px;
+}}
+QCheckBox:disabled, QRadioButton:disabled {{
+    color: {c["TEXT_MUTED"]};
+}}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid {c["BORDER"]};
+    background-color: {c["BG_INPUT"]};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {c["PRIMARY"]};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {c["PRIMARY"]};
+    border-color: {c["PRIMARY"]};
+    image: {check_icon};
+}}
+QCheckBox::indicator:disabled {{
+    background-color: {c["BG_MAIN"]};
+    border-color: {c["BORDER"]};
+}}
+QCheckBox::indicator:checked:disabled {{
+    background-color: {c["TEXT_MUTED"]};
+    border-color: {c["TEXT_MUTED"]};
+}}
+QRadioButton::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 9px;
+    border: 2px solid {c["BORDER"]};
+    background-color: {c["BG_INPUT"]};
+}}
+QRadioButton::indicator:hover {{
+    border-color: {c["PRIMARY"]};
+}}
+QRadioButton::indicator:checked {{
+    border: 5px solid {c["PRIMARY"]};
+    background-color: {c["BG_CARD"]};
+}}
+QRadioButton::indicator:disabled {{
+    border-color: {c["TEXT_MUTED"]};
+    background-color: {c["BG_MAIN"]};
 }}
 
 QPushButton#primaryBtn {{

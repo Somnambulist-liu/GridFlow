@@ -51,3 +51,8 @@ def get_ignored_version() -> str:
 
 def set_ignored_version(version: str):
     _settings.setValue("update/ignored_version", version)
+
+
+def clear_ignored_version():
+    """清除“忽略此版本”，让该版本重新提示。"""
+    _settings.remove("update/ignored_version")

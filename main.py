@@ -32,13 +32,12 @@ def main():
     app.setApplicationName("GridFlow")
     app.setOrganizationName("GridFlow")
 
-    base = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
-    icon_ext = "ico" if sys.platform == "win32" else "png"
-    icon_path = os.path.join(base, "resources", f"icon.{icon_ext}")
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
-
+    from app.resources import icon_path
     from app.main_window import MainWindow
+
+    icon = icon_path()
+    if os.path.exists(icon):
+        app.setWindowIcon(QIcon(icon))
 
     window = MainWindow()
     for feature_id, module_name, class_name in FEATURE_MODULES:

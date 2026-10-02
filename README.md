@@ -246,35 +246,3 @@ pyinstaller build_linux.spec  # Linux
 ```
 
 **依赖项**：PySide6、openpyxl、pyinstaller（仅打包时需要）
-
-### 版本号与产物
-
-- **版本来源**：以 [version_info.txt](version_info.txt) 的 `prodvers` 为准（CI 用它生成
-  `vX.Y.Z`）。改版本时三处要一起改：`version_info.txt`（`prodvers`/`filevers` 与
-  `FileVersion`/`ProductVersion` 字符串）、[app/i18n.py](app/i18n.py) 的 `APP_VERSION`、
-  中英文两处 `app.version`。
-- **产物命名**：[.github/workflows/build.yml](.github/workflows/build.yml) 会把
-  `dist/GridFlow(.exe)` 重命名为 `GridFlow-<版本>-<平台>-<架构>(.exe)`，
-  并生成同名的 `.sha256` 校验文件（coreutils 格式，可直接 `sha256sum -c`）。
-
-  ```bash
-  pyinstaller build_win.spec --noconfirm        # 本地打包
-  # → dist/GridFlow.exe，按上面的规则改名/算校验值即可得到发布产物
-  ```
-
-- **发布说明**：[RELEASE_NOTES.md](RELEASE_NOTES.md) 是 GitHub Release 正文模板，
-  打 tag 时由 workflow 读取：把 `@VERSION@` 替换成 tag，并在末尾自动附上各产物的
-  SHA256 校验值——发版信息里不用手写哈希。
-- **校验文件完整性**：
-
-  ```bash
-  sha256sum -c GridFlow-v3.5.1-Linux-x86_64.sha256          # Linux
-  ```
-
-  ```powershell
-  Get-FileHash .\GridFlow-v3.5.1-Windows-x64.exe -Algorithm SHA256   # Windows PowerShell
-  ```
-
-- **打包注意**：`main.py` 用惰性 import 加载功能模块，PyInstaller 的静态扫描看不到
-  这些模块，改动打包配置时务必保留三个 `*.spec` 里的 `hiddenimports`；
-  可用 `tools/frozen_probe.py` 验证打包产物能正常打开全部 8 个功能页。

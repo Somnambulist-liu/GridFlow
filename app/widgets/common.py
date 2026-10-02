@@ -20,6 +20,29 @@ class ClickableFrame(QFrame):
         super().mouseReleaseEvent(event)
 
 
+def checkbox_style(c: dict, size: int = 15, color_key: str = "TEXT_SECONDARY",
+                   font_size: str = "9pt") -> str:
+    """复选框样式（含选中态对勾）。
+
+    功能页里各自写死的 indicator 样式会让“已勾选”只剩一个色块，这里统一走
+    resources/check.png，并保留 hover / disabled / focus 反馈。
+    """
+    from app.resources import qss_url
+
+    return (
+        f"QCheckBox {{ color: {c[color_key]}; font-size: {font_size}; spacing: 6px; }} "
+        f"QCheckBox:disabled {{ color: {c['TEXT_MUTED']}; }} "
+        f"QCheckBox::indicator {{ width: {size}px; height: {size}px; border-radius: 3px; "
+        f"border: 1px solid {c['BORDER']}; background-color: {c['BG_INPUT']}; }} "
+        f"QCheckBox::indicator:hover {{ border-color: {c['PRIMARY']}; }} "
+        f"QCheckBox::indicator:checked {{ background-color: {c['PRIMARY']}; "
+        f"border-color: {c['PRIMARY']}; image: {qss_url('check.png')}; }} "
+        f"QCheckBox::indicator:disabled {{ background-color: {c['BG_MAIN']}; }} "
+        f"QCheckBox::indicator:checked:disabled {{ background-color: {c['TEXT_MUTED']}; "
+        f"border-color: {c['TEXT_MUTED']}; }} "
+    )
+
+
 def set_button_menu(button: QToolButton, menu: QMenu) -> None:
     """给按钮挂菜单，同时释放旧的菜单。
 

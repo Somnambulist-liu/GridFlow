@@ -4,7 +4,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('resources/icon.ico', 'resources/')],
+    datas=[('resources/icon.ico', 'resources/'), ('resources/check.png', 'resources/')],
     hiddenimports=[
         'openpyxl.cell._writer',
         'openpyxl.cell.writer',

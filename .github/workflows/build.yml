@@ -145,8 +145,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # @VERSION@ -> 实际 tag（用 | 作分隔符，tag 里出现 / 也不会出错）
-          sed "s|@VERSION@|${GITHUB_REF_NAME}|g" RELEASE_NOTES.md > release_body.md
+          # RELEASE_NOTES.md 是发布页正文模板：
+          #   - 用 | 作分隔符把 @VERSION@ 替换成实际 tag
+          #   - 先删掉 HTML 注释块（模板里若写了维护说明，不会泄漏到发布页/更新对话框）
+          sed -e '/^<!--/,/^-->/d' -e "s|@VERSION@|${GITHUB_REF_NAME}|g" RELEASE_NOTES.md > release_body.md
           {
             echo ""
             echo "## SHA256 校验值 / Checksums"
