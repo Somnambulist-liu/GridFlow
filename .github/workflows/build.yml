@@ -123,6 +123,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4          # 读取 RELEASE_NOTES.md 模板需要仓库内容
+
       - uses: actions/download-artifact@v4
         with:
           pattern: GridFlow-*
